@@ -18,6 +18,10 @@ type HealthzController struct {
 	isShuttingDown *atomic.Bool
 }
 
+type HealthzResponse struct {
+	Status string `json:"status"`
+}
+
 func New(chiRouter chi.Router, logger *slog.Logger, isShuttingDown *atomic.Bool) *HealthzController {
 	return &HealthzController{
 		chiRouter:      chiRouter,
@@ -29,10 +33,6 @@ func New(chiRouter chi.Router, logger *slog.Logger, isShuttingDown *atomic.Bool)
 func (hc *HealthzController) RegisterRoutes() {
 	hc.logger.Info(fmt.Sprintf("registering %s endpoint", healthzEndpoint))
 	hc.chiRouter.Get(healthzEndpoint, hc.healthzHandler)
-}
-
-type HealthzResponse struct {
-	Status string `json:"status"`
 }
 
 func (hc *HealthzController) healthzHandler(w http.ResponseWriter, r *http.Request) {

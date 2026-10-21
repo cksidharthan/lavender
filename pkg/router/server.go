@@ -33,11 +33,12 @@ func NewServer(appConfig *config.Config, chiRouter chi.Router, logger *slog.Logg
 			BaseContext:       func(net.Listener) context.Context { return ongoingContext },
 			ReadHeaderTimeout: 5 * time.Second,
 		},
-		logger:          logger,
-		shuttingDown:    shuttingDown,
-		stopOngoing:     stopOngoingContext,
+		logger:       logger,
+		shuttingDown: shuttingDown,
+		stopOngoing:  stopOngoingContext,
+		// TODO: should this be retrieved from appConfig? I see this might be useful if the app runs at scale, but not right now (or maybe never :D)
 		proporateWait:   time.Second,
-		shutdownTimeout: time.Minute,
+		shutdownTimeout: time.Duration(appConfig.ShutdownWaitSeconds),
 	}
 }
 

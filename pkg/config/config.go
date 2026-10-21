@@ -3,22 +3,24 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+
 	env "github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
-	"io/fs"
 )
 
 type Config struct {
 	// HTTP Server configuration
-	HTTPServerPort int64  `env:"HTTP_SERVER_PORT" envDefault:"8080"`
-	LogLevel       string `env:"LOG_LEVEL" envDefault:"info"`
-	Environment    string `env:"ENVIRONMENT" envDefault:"local"`
+	HTTPServerPort      int64  `env:"HTTP_SERVER_PORT" envDefault:"8080"`
+	ShutdownWaitSeconds int    `env:"SHUTDOWN_WAIT_SECONDS" envDefault:"30"`
+	LogLevel            string `env:"LOG_LEVEL" envDefault:"info"`
+	Environment         string `env:"ENVIRONMENT" envDefault:"local"`
 
 	// OTEL Config
-	OTELEnabled     bool   `env:"OTEL_ENABLED" envDefault:"false"`
-	OTELServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"lavender"`
-	OTELHost        string `env:"OTEL_HOST" envDefault:"localhost"`
-	OTELPort        int64  `env:"OTEL_PORT" envDefault:"4317"`
+	OTELEnabled     bool   `env:"OTEL_ENABLED" envDefault:"false" json:"otel_enabled"`
+	OTELServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"lavender" json:"otel_service_name"`
+	OTELHost        string `env:"OTEL_HOST" envDefault:"localhost" json:"otel_host"`
+	OTELPort        int64  `env:"OTEL_PORT" envDefault:"4317" json:"otel_port"`
 }
 
 func New() (*Config, error) {
