@@ -1,0 +1,24 @@
+version: '3'
+
+tasks:
+  default:
+    desc: list all the available commands
+    cmds:
+      - task --list-all
+
+  deps:
+    desc: pull all go dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+      - go mod verify
+
+  run:
+    desc: run the application
+    cmds:
+      - go run main.go
+
+  test:
+    desc: run the unit and integration tests
+    cmds:
+      - go test ./...
