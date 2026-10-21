@@ -4,4 +4,5 @@ const (
 	ErrorKey   = "error"
 	PortKey    = "port"
 	AddressKey = "address"
+	ModuleKey  = "module"
 )

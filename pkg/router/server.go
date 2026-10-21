@@ -12,6 +12,7 @@ import (
 
 	"github.com/cksidharthan/lavender/pkg/config"
 	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
+	"github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -21,9 +22,10 @@ type Server struct {
 	shuttingDown                   *atomic.Bool
 	stopOngoing                    context.CancelFunc
 	proporateWait, shutdownTimeout time.Duration
+	lavenderOTEL                   *otel.LavenderOTEL
 }
 
-func NewServer(appConfig *config.Config, chiRouter chi.Router, logger *slog.Logger, shuttingDown *atomic.Bool) *Server {
+func NewServer(appConfig *config.Config, chiRouter chi.Router, logger *slog.Logger, shuttingDown *atomic.Bool, lavenderOTEL *otel.LavenderOTEL) *Server {
 	ongoingContext, stopOngoingContext := context.WithCancel(context.Background())
 
 	return &Server{
@@ -39,6 +41,7 @@ func NewServer(appConfig *config.Config, chiRouter chi.Router, logger *slog.Logg
 		// TODO: should this be retrieved from appConfig? I see this might be useful if the app runs at scale, but not right now (or maybe never :D)
 		proporateWait:   time.Second,
 		shutdownTimeout: time.Duration(appConfig.ShutdownWaitSeconds),
+		lavenderOTEL:    lavenderOTEL,
 	}
 }
 
@@ -69,6 +72,18 @@ func (s *Server) shutdown() error {
 
 	serverShutdownContext, serverShutdownCtxCancel := context.WithTimeout(context.Background(), time.Minute)
 	defer serverShutdownCtxCancel()
+
+	if err := s.lavenderOTEL.TraceProvider.Shutdown(serverShutdownContext); err != nil {
+		s.logger.ErrorContext(serverShutdownContext, "error shutting down tracer provider", slog.Any(lavenderLogger.ErrorKey, err))
+	}
+
+	if err := s.lavenderOTEL.MetricsProvider.Shutdown(serverShutdownContext); err != nil {
+		s.logger.ErrorContext(serverShutdownContext, "error shutting down metrics provider", slog.Any(lavenderLogger.ErrorKey, err))
+	}
+
+	if err := s.lavenderOTEL.LoggerProvider.Shutdown(serverShutdownContext); err != nil {
+		s.logger.ErrorContext(serverShutdownContext, "error shutting down logger provider", slog.Any(lavenderLogger.ErrorKey, err))
+	}
 
 	err := s.http.Shutdown(serverShutdownContext)
 	s.stopOngoing()
