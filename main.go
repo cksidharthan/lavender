@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"github.com/cksidharthan/lavender/cmd"
+)
 
 func main() {
-	fmt.Println("Hello World!")
+	cmd.Start()
 }
