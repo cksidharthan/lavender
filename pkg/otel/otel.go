@@ -21,6 +21,14 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.28.0"
 )
 
+// export limits keep an unreachable collector from blocking flushes (and so
+// application shutdown) for the SDK default of up to a minute.
+const (
+	exportTimeout        = 3 * time.Second
+	retryInitialInterval = 500 * time.Millisecond
+	retryMaxInterval     = time.Second
+)
+
 type LavenderOTEL struct {
 	TraceProvider   *sdktrace.TracerProvider
 	MetricsProvider *metric.MeterProvider
@@ -63,6 +71,13 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 		traceExporter, err := otlptracegrpc.New(ctx,
 			otlptracegrpc.WithEndpoint(endpoint),
 			otlptracegrpc.WithInsecure(),
+			otlptracegrpc.WithTimeout(exportTimeout),
+			otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{
+				Enabled:         true,
+				InitialInterval: retryInitialInterval,
+				MaxInterval:     retryMaxInterval,
+				MaxElapsedTime:  exportTimeout,
+			}),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
@@ -90,6 +105,13 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 		metricExporter, err := otlpmetricgrpc.New(ctx,
 			otlpmetricgrpc.WithEndpoint(endpoint),
 			otlpmetricgrpc.WithInsecure(),
+			otlpmetricgrpc.WithTimeout(exportTimeout),
+			otlpmetricgrpc.WithRetry(otlpmetricgrpc.RetryConfig{
+				Enabled:         true,
+				InitialInterval: retryInitialInterval,
+				MaxInterval:     retryMaxInterval,
+				MaxElapsedTime:  exportTimeout,
+			}),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OTLP metric exporter: %w", err)
@@ -112,6 +134,13 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 		logExporter, err := otlploggrpc.New(ctx,
 			otlploggrpc.WithEndpoint(endpoint),
 			otlploggrpc.WithInsecure(),
+			otlploggrpc.WithTimeout(exportTimeout),
+			otlploggrpc.WithRetry(otlploggrpc.RetryConfig{
+				Enabled:         true,
+				InitialInterval: retryInitialInterval,
+				MaxInterval:     retryMaxInterval,
+				MaxElapsedTime:  exportTimeout,
+			}),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OTLP log exporter: %w", err)

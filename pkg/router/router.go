@@ -12,15 +12,17 @@ import (
 	"github.com/cksidharthan/lavender/pkg/config"
 	"github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/go-chi/chi/v5"
+	pb "github.com/pocketbase/pocketbase"
 )
 
-func RunServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *otel.LavenderOTEL) error {
+func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *otel.LavenderOTEL, pbApp *pb.PocketBase) error {
 	var isShuttingDown atomic.Bool
 
 	mainAppServerContext, mainAppServerStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer mainAppServerStop()
 
 	mainChiRouter := chi.NewRouter()
+	apiRouterGroup := chi.NewRouter()
 	v1RouterGroup := chi.NewRouter()
 
 	// healthz Controller
@@ -30,10 +32,12 @@ func RunServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *otel
 	}
 	healthzCtrl.RegisterRoutes()
 
+	// mounts all v1 router groups onto /api routergroup
+	apiRouterGroup.Mount("/v1", v1RouterGroup)
 	// mount all the subRoutes to the main chi router.
-	mainChiRouter.Mount("/v1", v1RouterGroup)
+	mainChiRouter.Mount("/api", apiRouterGroup)
 
-	appServer := NewServer(appConfig, mainChiRouter, logger, &isShuttingDown, lavenderOTEL)
+	appServer := NewServer(appConfig, mainChiRouter, logger, &isShuttingDown, lavenderOTEL, pbApp)
 	err = appServer.Run(mainAppServerContext)
 	if err != nil {
 		return fmt.Errorf("error running server :%v", err)
