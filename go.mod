@@ -3,8 +3,10 @@ module github.com/cksidharthan/lavender
 go 1.27.1
 
 require (
+	github.com/a-h/templ v0.3.1070
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-chi/chi/v5 v5.5.0
+	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/render v1.0.3
 	github.com/joho/godotenv v1.5.1
 	github.com/pocketbase/pocketbase v0.40.5
@@ -23,7 +25,6 @@ require (
 
 require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
-	github.com/a-h/templ v0.3.1070 // indirect
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/andybalholm/brotli v1.2.6 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect

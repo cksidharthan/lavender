@@ -1,0 +1,63 @@
+package components
+
+type FieldProps struct {
+	ID           string
+	Name         string
+	Label        string
+	Type         string
+	Placeholder  string
+	Required     bool
+	Autocomplete string
+}
+
+templ TextField(p FieldProps) {
+	<div class="mb-4">
+		<label for={ p.ID } class="mb-1.5 block font-medium text-slate-700 sm:text-sm">{ p.Label }</label>
+		<div class="relative">
+			<input
+				class={ inputClass }
+				id={ p.ID }
+				name={ p.Name }
+				type={ p.Type }
+				placeholder={ p.Placeholder }
+				autocomplete={ p.Autocomplete }
+				required?={ p.Required }
+			/>
+		</div>
+	</div>
+}
+
+templ PasswordField(p FieldProps) {
+	<div class="mb-4">
+		<label for={ p.ID } class="mb-1.5 block font-medium text-slate-700 sm:text-sm">{ p.Label }</label>
+		<div class="relative">
+			<input
+				class={ inputClass + " pr-11" }
+				id={ p.ID }
+				name={ p.Name }
+				type="password"
+				placeholder={ p.Placeholder }
+				autocomplete={ p.Autocomplete }
+				required?={ p.Required }
+			/>
+			<button
+				type="button"
+				class="absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-r-lg text-slate-400 transition hover:text-slate-600"
+				aria-label="Toggle password visibility"
+				onclick="const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'"
+			>
+				<svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path>
+					<circle cx="12" cy="12" r="3"></circle>
+				</svg>
+			</button>
+		</div>
+	</div>
+}
+
+// FormError is the htmx swap target content for failed form submissions.
+templ FormError(msg string) {
+	if msg != "" {
+		<div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700" role="alert">{ msg }</div>
+	}
+}

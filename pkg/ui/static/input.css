@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@source "../**/*.templ";
+
+@theme {
+  --color-brand: #3b37e8;
+  --color-brand-dark: #2d29c4;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}

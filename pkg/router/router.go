@@ -10,9 +10,13 @@ import (
 
 	healthzController "github.com/cksidharthan/lavender/pkg/api/v1/health/controller"
 	"github.com/cksidharthan/lavender/pkg/config"
+	"github.com/cksidharthan/lavender/pkg/middlewares"
 	"github.com/cksidharthan/lavender/pkg/otel"
 	lavenderPocketbase "github.com/cksidharthan/lavender/pkg/pocketbase"
+	uiHandlers "github.com/cksidharthan/lavender/pkg/ui/handlers"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	pb "github.com/pocketbase/pocketbase"
 )
 
@@ -23,6 +27,19 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 	defer mainAppServerStop()
 
 	mainChiRouter := chi.NewRouter()
+	// tracing goes first, so the request logs sent through the otel log handler are correlated to the trace. The health checks are not traced.
+	mainChiRouter.Use(middlewares.Tracing(lavenderOTEL.TraceProvider, "/api/v1/healthz"))
+	// the request logger is outermost after that, so it also logs the 500s written by the recoverer.
+	mainChiRouter.Use(middlewares.RequestLogger(logger))
+	mainChiRouter.Use(middleware.Recoverer)
+	mainChiRouter.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTION"},
+		AllowedHeaders:   []string{"User-Agent", "Content-Type", "Accept", "Accept-Encoding", "Accept-Language", "Cache-Control", "Connection", "DNT", "Host", "Origin", "Pragma", "Referer"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
 	apiRouterGroup := chi.NewRouter()
 	v1RouterGroup := chi.NewRouter()
 
@@ -46,6 +63,9 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 		return fmt.Errorf("error initializing healthz controller: %w", err)
 	}
 	healthzCtrl.RegisterRoutes()
+
+	// ui (templ + htmx) pages
+	uiHandlers.NewAuthHandler(mainChiRouter, logger, pbApp).RegisterRoutes()
 
 	// mounts all v1 router groups onto /api routergroup
 	apiRouterGroup.Mount("/v1", v1RouterGroup)

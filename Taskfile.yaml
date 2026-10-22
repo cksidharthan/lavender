@@ -17,6 +17,7 @@ tasks:
     cmds:
       - brew install golang
       - brew install golangci-lint
+      - brew install tailwindcss
 
   lint:
     desc: run linters on the project
@@ -31,9 +32,21 @@ tasks:
       - go mod tidy
       - go mod verify
 
+  css:
+    desc: build the tailwind stylesheet (committed, as it is embedded into the binary)
+    cmds:
+      - tailwindcss -i pkg/ui/static/input.css -o pkg/ui/static/app.css --minify
+
+  generate:
+    desc: generate go code from the templ files and build the tailwind stylesheet
+    cmds:
+      - go tool templ generate
+      - task: css
+
   run:
     desc: run the application
     cmds:
+      - task: generate
       - go run main.go
 
   test:

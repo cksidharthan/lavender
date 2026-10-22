@@ -1,0 +1,25 @@
+package pages
+
+import (
+	"github.com/cksidharthan/lavender/pkg/ui/components"
+	"github.com/cksidharthan/lavender/pkg/ui/layouts"
+)
+
+templ Home(email string) {
+	@layouts.Auth("Home") {
+		<h1 class={ components.TitleClass }>Welcome 👋</h1>
+		<p class={ components.SubtitleClass }>Signed in as { email }</p>
+		@components.Button(components.ButtonProps{Variant: components.ButtonSecondary, FullWidth: true, Attrs: components.OpenModal("logout-modal")}) {
+			Logout
+		}
+		@components.ConfirmModal(components.ConfirmModalProps{
+			ID:           "logout-modal",
+			Title:        "Log out?",
+			Message:      "You will need to sign in again to access your account.",
+			ConfirmLabel: "Logout",
+			CancelLabel:  "Cancel",
+			Danger:       true,
+			ConfirmAttrs: templ.Attributes{"hx-post": "/logout"},
+		})
+	}
+}
