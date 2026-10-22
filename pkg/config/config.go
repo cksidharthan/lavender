@@ -17,10 +17,11 @@ type Config struct {
 	Environment         string `env:"ENVIRONMENT" envDefault:"local"`
 
 	// OTEL Config
-	OTELEnabled     bool   `env:"OTEL_ENABLED" envDefault:"false" json:"otel_enabled"`
-	OTELServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"lavender" json:"otel_service_name"`
-	OTELHost        string `env:"OTEL_HOST" envDefault:"localhost" json:"otel_host"`
-	OTELPort        int64  `env:"OTEL_PORT" envDefault:"4317" json:"otel_port"`
+	OTELEnabled               bool   `env:"OTEL_ENABLED" envDefault:"false" json:"otel_enabled"`
+	OTELServiceName           string `env:"OTEL_SERVICE_NAME" envDefault:"lavender" json:"otel_service_name"`
+	OTELHost                  string `env:"OTEL_HOST" envDefault:"localhost" json:"otel_host"`
+	OTELPort                  int64  `env:"OTEL_PORT" envDefault:"4317" json:"otel_port"`
+	MetricsUploadIntervalSecs int    `env:"METRICS_UPLOAD_INTERVAL_SECS" envDefault:"10" json:"metrics_upload_interval_secs"`
 }
 
 func New() (*Config, error) {

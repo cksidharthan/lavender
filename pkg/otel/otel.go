@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/cksidharthan/lavender/pkg/config"
 	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
@@ -44,7 +45,7 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 		resource.NewWithAttributes(
 			"",
 			semconv.ServiceNameKey.String(cfg.OTELServiceName),
-			attribute.String("deployment.environment", cfg.Environment),
+			attribute.String("environment", cfg.Environment),
 		),
 		customResource,
 	)
@@ -94,7 +95,13 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 			return nil, fmt.Errorf("failed to create OTLP metric exporter: %w", err)
 		}
 
-		meterOpts = append(meterOpts, metric.WithReader(metric.NewPeriodicReader(metricExporter)))
+		meterOpts = append(meterOpts, metric.WithReader(
+			metric.NewPeriodicReader(
+				metricExporter,
+				// at what intervals metrics has to be pushed to the otel collector.
+				metric.WithInterval(time.Duration(cfg.MetricsUploadIntervalSecs)*time.Second),
+			),
+		))
 	}
 	meterProvider := metric.NewMeterProvider(meterOpts...)
 
