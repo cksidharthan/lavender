@@ -22,6 +22,7 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 	defer mainAppServerStop()
 
 	mainChiRouter := chi.NewRouter()
+	apiRouterGroup := chi.NewRouter()
 	v1RouterGroup := chi.NewRouter()
 
 	// healthz Controller
@@ -31,8 +32,10 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 	}
 	healthzCtrl.RegisterRoutes()
 
+	// mounts all v1 router groups onto /api routergroup
+	apiRouterGroup.Mount("/v1", v1RouterGroup)
 	// mount all the subRoutes to the main chi router.
-	mainChiRouter.Mount("/v1", v1RouterGroup)
+	mainChiRouter.Mount("/api", apiRouterGroup)
 
 	appServer := NewServer(appConfig, mainChiRouter, logger, &isShuttingDown, lavenderOTEL, pbApp)
 	err = appServer.Run(mainAppServerContext)
