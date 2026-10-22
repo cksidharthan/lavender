@@ -22,6 +22,11 @@ type Config struct {
 	OTELHost                  string `env:"OTEL_HOST" envDefault:"localhost" json:"otel_host"`
 	OTELPort                  int64  `env:"OTEL_PORT" envDefault:"4317" json:"otel_port"`
 	MetricsUploadIntervalSecs int    `env:"METRICS_UPLOAD_INTERVAL_SECS" envDefault:"10" json:"metrics_upload_interval_secs"`
+
+	// Pocketbase config
+	PocketBaseDataDir       string `env:"POCKETBASE_DATA_DIR" envDefault:"./data/pb_data"`
+	PocketBaseAdminDisabled bool   `env:"POCKETBASE_ADMIN_DISABLED" envDefault:"true"`
+	PocketBaseAdminPort     int64  `env:"POCKETBASE_ADMIN_PORT" envDefault:"8090"`
 }
 
 func New() (*Config, error) {
