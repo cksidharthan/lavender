@@ -27,7 +27,7 @@ services:
         condition: service_healthy
     healthcheck:
       # the image is built from scratch and only ships a static curl
-      test: ["CMD", "/usr/bin/curl", "-fsS", "http://localhost:8080/healthz"]
+      test: ["CMD", "/usr/bin/curl", "-fsS", "http://localhost:8080/api/v1/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5

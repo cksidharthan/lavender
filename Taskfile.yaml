@@ -6,6 +6,24 @@ tasks:
     cmds:
       - task --list-all
 
+  fmt:
+    desc: format the project files
+    cmds:
+      - go fmt ./...
+      - go tool goimports -w .
+
+  dev-setup:
+    desc: installs all developer clis required to work with the project
+    cmds:
+      - brew install golang
+      - brew install golangci-lint
+
+  lint:
+    desc: run linters on the project
+    cmds:
+      - golangci-lint run
+      - templ fmt .
+
   deps:
     desc: pull all go dependencies
     cmds:
