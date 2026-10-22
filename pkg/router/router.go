@@ -23,13 +23,18 @@ func RunServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *otel
 	mainChiRouter := chi.NewRouter()
 	v1RouterGroup := chi.NewRouter()
 
-	healthzController.New(v1RouterGroup, logger, &isShuttingDown).RegisterRoutes()
+	// healthz Controller
+	healthzCtrl, err := healthzController.New(v1RouterGroup, logger, &isShuttingDown, lavenderOTEL.MetricsProvider.Meter("lavender_healthz_metrics"))
+	if err != nil {
+		return fmt.Errorf("error initializing healthz controller: %w", err)
+	}
+	healthzCtrl.RegisterRoutes()
 
 	// mount all the subRoutes to the main chi router.
 	mainChiRouter.Mount("/v1", v1RouterGroup)
 
 	appServer := NewServer(appConfig, mainChiRouter, logger, &isShuttingDown, lavenderOTEL)
-	err := appServer.Run(mainAppServerContext)
+	err = appServer.Run(mainAppServerContext)
 	if err != nil {
 		return fmt.Errorf("error running server :%v", err)
 	}
