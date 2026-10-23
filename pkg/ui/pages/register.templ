@@ -9,8 +9,7 @@ templ Register() {
 	@layouts.Auth("Register") {
 		<h1 class={ components.TitleClass }>Register</h1>
 		<p class={ components.SubtitleClass }>Create your account to get started</p>
-		<form hx-disabled-elt="find button[type=submit]" hx-post="/register" hx-target="#form-error" hx-swap="innerHTML">
-			<div id="form-error"></div>
+		<form hx-disabled-elt="find button[type=submit]" hx-post="/register" hx-swap="none">
 			@components.TextField(components.FieldProps{ID: "name", Name: "name", Label: "Name", Type: "text", Placeholder: "E.g. John Doe", Autocomplete: "name", Required: true})
 			@components.TextField(components.FieldProps{ID: "email", Name: "email", Label: "Email", Type: "email", Placeholder: "E.g. johndoe@email.com", Autocomplete: "email", Required: true})
 			@components.PasswordField(components.FieldProps{ID: "password", Name: "password", Label: "Password", Placeholder: "Create a password", Autocomplete: "new-password", Required: true})
@@ -19,7 +18,7 @@ templ Register() {
 			}
 		</form>
 		<p class="mt-5 text-centertext-slate-700 sm:text-sm">
-			<span class=pr-2>Already registered?</span>
+			<span class="pr-2">Already registered?</span>
 			@components.Link(components.LinkProps{Href: "/login"}) {
 				Login ↗
 			}

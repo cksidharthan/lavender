@@ -54,10 +54,3 @@ templ PasswordField(p FieldProps) {
 		</div>
 	</div>
 }
-
-// FormError is the htmx swap target content for failed form submissions.
-templ FormError(msg string) {
-	if msg != "" {
-		<div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700" role="alert">{ msg }</div>
-	}
-}

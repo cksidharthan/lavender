@@ -6,4 +6,15 @@
   --color-brand: #3b37e8;
   --color-brand-dark: #2d29c4;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --animate-toast-progress: toast-progress linear forwards;
+
+  @keyframes toast-progress {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
 }

@@ -21,6 +21,9 @@ const (
 	authCookieName    = "lavender_auth"
 	rememberMeMaxAge  = 30 * 24 * time.Hour
 	minPasswordLength = 8
+
+	loginErrorTitle    = "Login error"
+	registerErrorTitle = "Registration error"
 )
 
 type AuthHandler struct {
@@ -55,7 +58,7 @@ func (h *AuthHandler) home(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		h.formError(w, r, "Invalid request.")
+		h.toastError(w, r, loginErrorTitle, "Invalid request.")
 		return
 	}
 
@@ -66,13 +69,13 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	record, err := h.pbApp.FindAuthRecordByEmail(usersCollection, email)
 	// the same message for unknown email and wrong password, so accounts can't be enumerated.
 	if err != nil || !record.ValidatePassword(password) {
-		h.formError(w, r, "Invalid email or password.")
+		h.toastError(w, r, loginErrorTitle, "Invalid email or password.")
 		return
 	}
 
 	if err := h.startSession(w, r, record, remember); err != nil {
 		h.logger.Error("error starting session", slog.Any("error", err))
-		h.formError(w, r, "Something went wrong, please try again.")
+		h.toastError(w, r, loginErrorTitle, "Something went wrong, please try again.")
 		return
 	}
 
@@ -81,7 +84,7 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		h.formError(w, r, "Invalid request.")
+		h.toastError(w, r, registerErrorTitle, "Invalid request.")
 		return
 	}
 
@@ -90,22 +93,22 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 
 	if _, err := mail.ParseAddress(email); err != nil {
-		h.formError(w, r, "Please enter a valid email address.")
+		h.toastError(w, r, registerErrorTitle, "Please enter a valid email address.")
 		return
 	}
 	if len(password) < minPasswordLength {
-		h.formError(w, r, fmt.Sprintf("Password must be at least %d characters.", minPasswordLength))
+		h.toastError(w, r, registerErrorTitle, fmt.Sprintf("Password must be at least %d characters.", minPasswordLength))
 		return
 	}
 	if _, err := h.pbApp.FindAuthRecordByEmail(usersCollection, email); err == nil {
-		h.formError(w, r, "An account with this email already exists.")
+		h.toastError(w, r, registerErrorTitle, "An account with this email already exists.")
 		return
 	}
 
 	collection, err := h.pbApp.FindCollectionByNameOrId(usersCollection)
 	if err != nil {
 		h.logger.Error("error finding users collection", slog.Any("error", err))
-		h.formError(w, r, "Something went wrong, please try again.")
+		h.toastError(w, r, registerErrorTitle, "Something went wrong, please try again.")
 		return
 	}
 
@@ -116,7 +119,7 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.pbApp.Save(record); err != nil {
 		h.logger.Error("error creating user", slog.Any("error", err))
-		h.formError(w, r, "Could not create the account, please check your details.")
+		h.toastError(w, r, registerErrorTitle, "Could not create the account, please check your details.")
 		return
 	}
 
@@ -173,9 +176,10 @@ func (h *AuthHandler) startSession(w http.ResponseWriter, r *http.Request, recor
 	return nil
 }
 
-// formError renders the error into the htmx target. It answers 200 as htmx does not swap 4xx responses.
-func (h *AuthHandler) formError(w http.ResponseWriter, r *http.Request, msg string) {
-	_ = components.FormError(msg).Render(r.Context(), w)
+// toastError sends an error toast to the toast container through an htmx out of band swap. It answers
+// 200, as htmx does not swap 4xx responses.
+func (h *AuthHandler) toastError(w http.ResponseWriter, r *http.Request, title, msg string) {
+	_ = components.ToastOOB(components.ToastProps{Variant: components.ToastError, Title: title, Message: msg}).Render(r.Context(), w)
 }
 
 func htmxRedirect(w http.ResponseWriter, to string) {
