@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"net"
 	"net/http"
 	"slices"
 
@@ -39,7 +40,10 @@ func Tracing(tracerProvider trace.TracerProvider, skipPaths ...string) func(http
 					attribute.String("url.path", r.URL.Path),
 					attribute.String("server.address", r.Host),
 					attribute.String("user_agent.original", r.UserAgent()),
-					attribute.String("client.address", r.RemoteAddr),
+					attribute.String("client.address", clientAddress(r)),
+					attribute.String("url.scheme", scheme(r)),
+					attribute.String("network.protocol.version", r.Proto),
+					attribute.Int64("http.request.body.size", max(r.ContentLength, 0)),
 				),
 			)
 			defer span.End()
@@ -58,12 +62,36 @@ func Tracing(tracerProvider trace.TracerProvider, skipPaths ...string) func(http
 			if routeCtx := chi.RouteContext(r.Context()); routeCtx != nil && routeCtx.RoutePattern() != "" {
 				span.SetName(r.Method + " " + routeCtx.RoutePattern())
 				span.SetAttributes(attribute.String("http.route", routeCtx.RoutePattern()))
+			} else {
+				// no route handled it (pocketbase, 404s), the path is not a name that can be grouped on
+				span.SetName(r.Method + " " + unmatchedRoute)
 			}
 
-			span.SetAttributes(attribute.Int("http.response.status_code", status))
+			span.SetAttributes(
+				attribute.Int("http.response.status_code", status),
+				attribute.Int("http.response.body.size", ww.BytesWritten()),
+			)
 			if status >= http.StatusInternalServerError {
 				span.SetStatus(codes.Error, http.StatusText(status))
 			}
 		})
 	}
+}
+
+// clientAddress is the ip address of the client, without the port.
+func clientAddress(r *http.Request) string {
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+
+	return r.RemoteAddr
+}
+
+// scheme is the scheme the client used, the application runs behind a proxy that ends the tls.
+func scheme(r *http.Request) string {
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		return "https"
+	}
+
+	return "http"
 }

@@ -15,8 +15,10 @@ import (
 	"syscall"
 	"time"
 
+	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/cksidharthan/lavender/pkg/pocketbase/db"
 	"github.com/mmcdole/gofeed"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/net/html"
 )
 
@@ -30,6 +32,8 @@ var (
 	ErrInvalidURL = errors.New("the feed url must be a valid http or https url")
 	ErrNotAFeed   = errors.New("the url does not point to an rss or atom feed")
 	errPrivateIP  = errors.New("the feed url points to a private address")
+	// errBadStatus is wrapped with the status code, the message reads "the feed answered with status 404"
+	errBadStatus = errors.New("the feed answered with status")
 )
 
 // Result is a downloaded feed.
@@ -104,11 +108,38 @@ func refusePrivate(_, address string, _ syscall.RawConn) error {
 }
 
 // Fetch downloads the feed at rawURL and reads its metadata.
-func Fetch(ctx context.Context, rawURL string) (Result, error) {
+func Fetch(ctx context.Context, rawURL string) (result Result, err error) {
+	ctx, span := lavenderOTEL.StartNewSpanWithName(ctx, "feedfetch.Fetch")
+	started := time.Now()
+
+	// what is known of the download, for the metrics and the span
+	var (
+		host   string
+		status int
+		read   countingReader
+	)
+
+	defer func() {
+		outcome := fetchOutcome(ctx, err)
+		span.SetAttributes(
+			attribute.String("feed.fetch.result", outcome),
+			attribute.Int("feed.items", len(result.Items)),
+			attribute.Int64("feed.fetch.bytes", read.n),
+		)
+		lavenderOTEL.RecordError(ctx, err)
+		lavenderOTEL.RecordFeedFetch(ctx, lavenderOTEL.FeedFetch{
+			Result: outcome, Host: host, Status: status, Duration: time.Since(started), Items: len(result.Items), Bytes: read.n,
+		})
+		span.End()
+	}()
+
 	u, err := ParseURL(rawURL)
 	if err != nil {
 		return Result{}, err
 	}
+	// only the host, the path and query of a feed url can hold a secret token
+	host = u.Hostname()
+	span.SetAttributes(attribute.String("server.address", host), attribute.String("url.scheme", u.Scheme))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -123,11 +154,47 @@ func Fetch(ctx context.Context, rawURL string) (Result, error) {
 	}
 	defer resp.Body.Close()
 
+	status = resp.StatusCode
+	span.SetAttributes(attribute.Int("http.response.status_code", status))
+
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return Result{}, fmt.Errorf("the feed answered with status %d", resp.StatusCode)
+		return Result{}, fmt.Errorf("%w %d", errBadStatus, resp.StatusCode)
 	}
 
-	return Parse(io.LimitReader(resp.Body, maxBodyBytes))
+	read.r = io.LimitReader(resp.Body, maxBodyBytes)
+
+	return Parse(&read)
+}
+
+// countingReader counts the bytes that are read through it.
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+
+	return n, err
+}
+
+// fetchOutcome is the label of the result of a fetch for the metrics.
+func fetchOutcome(ctx context.Context, err error) string {
+	switch {
+	case err == nil:
+		return "success"
+	case ctx.Err() != nil:
+		return "cancelled"
+	case errors.Is(err, ErrInvalidURL), errors.Is(err, errPrivateIP):
+		return "invalid_url"
+	case errors.Is(err, ErrNotAFeed):
+		return "not_a_feed"
+	case errors.Is(err, errBadStatus):
+		return "bad_status"
+	default:
+		return "network"
+	}
 }
 
 // Parse reads a rss, atom or json feed.

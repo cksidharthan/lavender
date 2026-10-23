@@ -20,7 +20,6 @@ import (
 	uiHandlers "github.com/cksidharthan/lavender/pkg/ui/handlers"
 	"github.com/cksidharthan/lavender/pkg/worker"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	pb "github.com/pocketbase/pocketbase"
 )
@@ -34,9 +33,11 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 	mainChiRouter := chi.NewRouter()
 	// tracing goes first, so the request logs sent through the otel log handler are correlated to the trace. The health checks are not traced.
 	mainChiRouter.Use(middlewares.Tracing(lavenderOTEL.TraceProvider, "/api/v1/healthz"))
+	// the metrics of the requests, the health checks are not recorded as they would drown the real requests.
+	mainChiRouter.Use(middlewares.Metrics("/api/v1/healthz"))
 	// the request logger is outermost after that, so it also logs the 500s written by the recoverer.
 	mainChiRouter.Use(middlewares.RequestLogger(logger))
-	mainChiRouter.Use(middleware.Recoverer)
+	mainChiRouter.Use(middlewares.Recoverer(logger))
 	mainChiRouter.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTION"},
@@ -82,6 +83,8 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 	if err != nil {
 		return fmt.Errorf("error creating the icon cache: %w", err)
 	}
+
+	registerGauges(logger, pbApp, iconCache, appConfig.PocketBaseDataDir)
 
 	key, err := mfa.LoadKey(appConfig.SecretKey, appConfig.PocketBaseDataDir)
 	if err != nil {

@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: Lavender
+    orgId: 1
+    folder: Lavender
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /otel-lgtm/lavender-dashboards

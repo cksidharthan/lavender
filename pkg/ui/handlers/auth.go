@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,7 +12,10 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/cksidharthan/lavender/pkg/iconcache"
+	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
 	"github.com/cksidharthan/lavender/pkg/mfa"
+	"github.com/cksidharthan/lavender/pkg/middlewares"
+	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/cksidharthan/lavender/pkg/store"
 	"github.com/cksidharthan/lavender/pkg/ui/components"
 	"github.com/cksidharthan/lavender/pkg/ui/pages"
@@ -89,6 +93,7 @@ func (h *AuthHandler) RegisterRoutes() {
 
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
+		lavenderOTEL.RecordLogin(r.Context(), lavenderOTEL.LoginPassword, "invalid_request")
 		h.toastError(w, r, loginErrorTitle, "Invalid request.")
 		return
 	}
@@ -99,13 +104,19 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 
 	record, err := h.pbApp.FindAuthRecordByEmail(usersCollection, email)
 	// the same message for unknown email and wrong password, so accounts can't be enumerated.
-	if err != nil || !record.ValidatePassword(password) {
+	if err != nil || !h.validPassword(r.Context(), record, password) {
+		lavenderOTEL.RecordLogin(r.Context(), lavenderOTEL.LoginPassword, "invalid_credentials")
+		// no email in the log, it could be a password typed in the wrong field. The request log has the client.
+		h.logger.WarnContext(r.Context(), "login failed")
 		h.toastError(w, r, loginErrorTitle, "Invalid email or password.")
 		return
 	}
 
+	middlewares.NoteUser(r.Context(), record.Id)
+
 	// the second step, the session starts when the code is right
 	if mfa.Enabled(record) {
+		lavenderOTEL.RecordLogin(r.Context(), lavenderOTEL.LoginPassword, "two_factor_required")
 		h.setChallengeCookie(w, r, h.mfa.NewChallenge(record.Id, remember), int(mfa.ChallengeTTL.Seconds()))
 		htmxRedirect(w, "/login/2fa")
 
@@ -113,12 +124,33 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.startSession(w, r, record, remember); err != nil {
-		h.logger.Error("error starting session", slog.Any("error", err))
+		lavenderOTEL.RecordLogin(r.Context(), lavenderOTEL.LoginPassword, "error")
+		h.logError(r, "error starting session", err)
 		h.toastError(w, r, loginErrorTitle, "Something went wrong, please try again.")
 		return
 	}
 
+	lavenderOTEL.RecordLogin(r.Context(), lavenderOTEL.LoginPassword, lavenderOTEL.ResultSuccess)
+	h.logger.InfoContext(r.Context(), "user logged in", slog.String(lavenderLogger.UserIDKey, record.Id), slog.Bool("remember", remember))
 	htmxRedirect(w, "/")
+}
+
+// validPassword checks the password of the user. Hashing is the slowest step of a login, so it has a span and a
+// metric of its own.
+func (h *AuthHandler) validPassword(ctx context.Context, record *core.Record, password string) bool {
+	_, span := lavenderOTEL.StartNewSpanWithName(ctx, "auth.validate_password")
+	defer span.End()
+
+	started := time.Now()
+	valid := record.ValidatePassword(password)
+
+	result := "invalid"
+	if valid {
+		result = "valid"
+	}
+	lavenderOTEL.RecordPasswordValidation(ctx, result, time.Since(started))
+
+	return valid
 }
 
 const (
@@ -143,6 +175,7 @@ func (h *AuthHandler) login2FA(w http.ResponseWriter, r *http.Request) {
 	challenge, ok := h.challenge(r)
 	if !ok {
 		// the password was too long ago, it has to be entered again
+		lavenderOTEL.RecordTwoFactor(r.Context(), "expired", "unknown")
 		h.setChallengeCookie(w, r, "", -1)
 		htmxRedirect(w, "/login")
 
@@ -150,22 +183,29 @@ func (h *AuthHandler) login2FA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
+		lavenderOTEL.RecordTwoFactor(r.Context(), "invalid_request", "unknown")
 		h.toastError(w, r, twoFactorErrorTitle, "Invalid request.")
 		return
 	}
 
-	_, err := h.mfa.VerifyLogin(challenge.UserID, r.PostFormValue("code"))
+	middlewares.NoteUser(r.Context(), challenge.UserID)
+
+	usedRecovery, err := h.mfa.VerifyLogin(challenge.UserID, r.PostFormValue("code"))
 	switch {
 	case errors.Is(err, mfa.ErrLocked):
+		lavenderOTEL.RecordTwoFactor(r.Context(), "locked", "unknown")
+		h.logger.WarnContext(r.Context(), "two-factor authentication locked after too many wrong codes", slog.String(lavenderLogger.UserIDKey, challenge.UserID))
 		h.setChallengeCookie(w, r, "", -1)
 		h.toastError(w, r, twoFactorErrorTitle, "Too many wrong codes. Go back to the login and try again in a few minutes.")
 
 		return
 	case errors.Is(err, mfa.ErrInvalid):
+		lavenderOTEL.RecordTwoFactor(r.Context(), "invalid", "unknown")
 		h.toastError(w, r, twoFactorErrorTitle, "That code is not right.")
 		return
 	case err != nil:
-		h.logger.Error("error verifying the code", slog.Any("error", err))
+		lavenderOTEL.RecordTwoFactor(r.Context(), "error", "unknown")
+		h.logError(r, "error verifying the code", err)
 		h.toastError(w, r, twoFactorErrorTitle, "Something went wrong, please try again.")
 
 		return
@@ -176,11 +216,22 @@ func (h *AuthHandler) login2FA(w http.ResponseWriter, r *http.Request) {
 		err = h.startSession(w, r, record, challenge.Remember)
 	}
 	if err != nil {
-		h.logger.Error("error starting session", slog.Any("error", err))
+		lavenderOTEL.RecordTwoFactor(r.Context(), "error", "unknown")
+		h.logError(r, "error starting session", err)
 		h.toastError(w, r, twoFactorErrorTitle, "Something went wrong, please try again.")
 
 		return
 	}
+
+	kind := "app"
+	if usedRecovery {
+		kind = "recovery"
+		lavenderOTEL.RecordRecoveryCodeUsed(r.Context())
+	}
+	lavenderOTEL.RecordTwoFactor(r.Context(), lavenderOTEL.ResultSuccess, kind)
+	lavenderOTEL.RecordLogin(r.Context(), lavenderOTEL.LoginTwoFactor, lavenderOTEL.ResultSuccess)
+	h.logger.InfoContext(r.Context(), "user logged in", slog.String(lavenderLogger.UserIDKey, record.Id), slog.Bool("remember", challenge.Remember),
+		slog.Bool("two_factor", true), slog.Bool("recovery_code", usedRecovery))
 
 	h.setChallengeCookie(w, r, "", -1)
 	htmxRedirect(w, "/")
@@ -211,6 +262,7 @@ func (h *AuthHandler) setChallengeCookie(w http.ResponseWriter, r *http.Request,
 
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
+		lavenderOTEL.RecordRegistration(r.Context(), "invalid_request")
 		h.toastError(w, r, registerErrorTitle, "Invalid request.")
 		return
 	}
@@ -220,21 +272,25 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 
 	if _, err := mail.ParseAddress(email); err != nil {
+		lavenderOTEL.RecordRegistration(r.Context(), "invalid_email")
 		h.toastError(w, r, registerErrorTitle, "Please enter a valid email address.")
 		return
 	}
 	if len(password) < minPasswordLength {
+		lavenderOTEL.RecordRegistration(r.Context(), "weak_password")
 		h.toastError(w, r, registerErrorTitle, fmt.Sprintf("Password must be at least %d characters.", minPasswordLength))
 		return
 	}
 	if _, err := h.pbApp.FindAuthRecordByEmail(usersCollection, email); err == nil {
+		lavenderOTEL.RecordRegistration(r.Context(), "email_taken")
 		h.toastError(w, r, registerErrorTitle, "An account with this email already exists.")
 		return
 	}
 
 	collection, err := h.pbApp.FindCollectionByNameOrId(usersCollection)
 	if err != nil {
-		h.logger.Error("error finding users collection", slog.Any("error", err))
+		lavenderOTEL.RecordRegistration(r.Context(), "error")
+		h.logError(r, "error finding users collection", err)
 		h.toastError(w, r, registerErrorTitle, "Something went wrong, please try again.")
 		return
 	}
@@ -245,13 +301,19 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	record.Set("name", name)
 
 	if err := h.pbApp.Save(record); err != nil {
-		h.logger.Error("error creating user", slog.Any("error", err))
+		lavenderOTEL.RecordRegistration(r.Context(), "error")
+		h.logError(r, "error creating user", err)
 		h.toastError(w, r, registerErrorTitle, "Could not create the account, please check your details.")
 		return
 	}
 
+	// the account exists from here on, even when the session could not be started
+	lavenderOTEL.RecordRegistration(r.Context(), lavenderOTEL.ResultSuccess)
+	middlewares.NoteUser(r.Context(), record.Id)
+	h.logger.InfoContext(r.Context(), "user registered", slog.String(lavenderLogger.UserIDKey, record.Id))
+
 	if err := h.startSession(w, r, record, false); err != nil {
-		h.logger.Error("error starting session", slog.Any("error", err))
+		h.logError(r, "error starting session", err)
 		htmxRedirect(w, "/login")
 		return
 	}
@@ -259,7 +321,12 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	htmxRedirect(w, "/")
 }
 
-func (h *AuthHandler) logout(w http.ResponseWriter, _ *http.Request) {
+func (h *AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
+	lavenderOTEL.RecordLogout(r.Context())
+	if user := h.currentUser(r); user != nil {
+		h.logger.InfoContext(r.Context(), "user logged out", slog.String(lavenderLogger.UserIDKey, user.Id))
+	}
+
 	http.SetCookie(w, &http.Cookie{Name: AuthCookieName, Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	htmxRedirect(w, "/login")
 }
@@ -275,6 +342,8 @@ func (h *AuthHandler) currentUser(r *http.Request) *core.Record {
 	if err != nil {
 		return nil
 	}
+
+	middlewares.NoteUser(r.Context(), record.Id)
 
 	return record
 }

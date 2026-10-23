@@ -4,8 +4,10 @@ package controller
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -14,15 +16,18 @@ import (
 
 	"github.com/cksidharthan/lavender/pkg/backup"
 	"github.com/cksidharthan/lavender/pkg/iconcache"
+	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
 	"github.com/cksidharthan/lavender/pkg/mfa"
 	"github.com/cksidharthan/lavender/pkg/middlewares"
 	"github.com/cksidharthan/lavender/pkg/opml"
+	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/cksidharthan/lavender/pkg/store"
 	"github.com/cksidharthan/lavender/pkg/ui/components"
 	"github.com/cksidharthan/lavender/pkg/ui/pages"
 	"github.com/cksidharthan/lavender/pkg/ui/view"
 	"github.com/go-chi/chi/v5"
 	"github.com/pocketbase/pocketbase/core"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -91,9 +96,11 @@ func (c *Controller) saveProfile(w http.ResponseWriter, r *http.Request) {
 	// new session, instead of being sent to the login page by the next click.
 	if updated, err := c.pbApp.FindRecordById("users", user.Id); err == nil && updated.Email() != oldEmail {
 		if err := c.startSession(w, r, updated); err != nil {
-			c.logger.Error("error starting a new session", slog.Any("error", err))
+			c.logError(r, "error starting a new session", err)
 		}
 	}
+
+	c.logger.InfoContext(r.Context(), "profile saved", slog.String(lavenderLogger.UserIDKey, user.Id), slog.Bool("email_changed", user.Email() != oldEmail))
 
 	// the sidebar has the name, the page the name and the email
 	c.answerWithSidebar(w, r, user.Id, components.ToastSuccess, "", "Profile saved.")
@@ -123,9 +130,11 @@ func (c *Controller) changePassword(w http.ResponseWriter, r *http.Request) {
 
 	if updated, err := c.pbApp.FindRecordById("users", user.Id); err == nil {
 		if err := c.startSession(w, r, updated); err != nil {
-			c.logger.Error("error starting a new session", slog.Any("error", err))
+			c.logError(r, "error starting a new session", err)
 		}
 	}
+
+	c.logger.InfoContext(r.Context(), "password changed", slog.String(lavenderLogger.UserIDKey, user.Id))
 
 	// the page is shown again, with empty fields
 	w.Header().Set("HX-Trigger", "reload-feed-page")
@@ -190,11 +199,25 @@ func (c *Controller) export(w http.ResponseWriter, r *http.Request) {
 	header.Set("Cache-Control", "no-store")
 	header.Set("X-Content-Type-Options", "nosniff")
 
+	ctx, span := lavenderOTEL.StartNewSpanWithName(r.Context(), "backup.export")
+	defer span.End()
+	started := time.Now()
+
 	// the zip is written as it is made, so a big backup is not held in memory. When it fails halfway the status is
 	// sent already, and the file is cut short, which the zip format shows.
-	if _, err := backup.Export(w, c.pbApp, user.Id, c.icons); err != nil {
-		c.logger.Error("error exporting backup", slog.Any("error", err))
+	out := &countingWriter{w: w}
+	counts, err := backup.Export(out, c.pbApp, user.Id, c.icons)
+	lavenderOTEL.RecordBackup(ctx, "backup_export", time.Since(started), err)
+	recordCounts(ctx, "backup_export", counts)
+	lavenderOTEL.RecordBackupSize(ctx, "backup_export", out.n)
+	span.SetAttributes(append(countAttributes(counts), attribute.Int64("backup.size", out.n))...)
+
+	if err != nil {
+		c.logError(r.WithContext(ctx), "error exporting backup", err)
+		return
 	}
+
+	c.logger.InfoContext(ctx, "backup exported", append(countAttrs(counts), slog.Int64("size", out.n), slog.Duration(lavenderLogger.DurationKey, time.Since(started)))...)
 }
 
 // importBackup adds what is in an uploaded backup to the account of the user.
@@ -229,19 +252,31 @@ func (c *Controller) importBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx, span := lavenderOTEL.StartNewSpanWithName(r.Context(), "backup.import")
+	defer span.End()
+	started := time.Now()
+
 	counts, err := backup.Import(zr, c.pbApp, user.Id, c.icons)
+	lavenderOTEL.RecordBackup(ctx, "backup_import", time.Since(started), err)
+	recordCounts(ctx, "backup_import", counts)
+	lavenderOTEL.RecordBackupSize(ctx, "backup_import", header.Size)
+	span.SetAttributes(append(countAttributes(counts), attribute.Int64("upload.size", header.Size))...)
+
 	if err != nil {
 		var invalid backup.InvalidError
 		if errors.As(err, &invalid) {
+			c.logger.InfoContext(ctx, "backup rejected", slog.String(lavenderLogger.ErrorKey, invalid.Message))
 			c.toast(w, r, components.ToastError, errorTitle, invalid.Message)
 			return
 		}
 
-		c.logger.Error("error importing backup", slog.Any("error", err))
+		c.logError(r.WithContext(ctx), "error importing backup", err)
 		c.toast(w, r, components.ToastError, errorTitle, genericError)
 
 		return
 	}
+
+	c.logger.InfoContext(ctx, "backup imported", append(countAttrs(counts), slog.Int64("upload_size", header.Size), slog.Duration(lavenderLogger.DurationKey, time.Since(started)))...)
 
 	// the new feeds and folders are in the sidebar, the page shows the new numbers
 	c.answerWithSidebar(w, r, user.Id, components.ToastSuccess, "Backup imported", summary(counts))
@@ -251,9 +286,14 @@ func (c *Controller) importBackup(w http.ResponseWriter, r *http.Request) {
 func (c *Controller) exportOPML(w http.ResponseWriter, r *http.Request) {
 	user := middlewares.UserFromContext(r.Context())
 
+	ctx, span := lavenderOTEL.StartNewSpanWithName(r.Context(), "opml.export")
+	defer span.End()
+	started := time.Now()
+
 	exports, err := c.store.ExportFeeds(user.Id)
 	if err != nil {
-		c.logger.Error("error exporting feeds", slog.Any("error", err))
+		lavenderOTEL.RecordBackup(ctx, "opml_export", time.Since(started), err)
+		c.logError(r.WithContext(ctx), "error exporting feeds", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
@@ -270,9 +310,17 @@ func (c *Controller) exportOPML(w http.ResponseWriter, r *http.Request) {
 	header.Set("Cache-Control", "no-store")
 	header.Set("X-Content-Type-Options", "nosniff")
 
-	if err := opml.Write(w, "Lavender feeds", feeds, time.Now()); err != nil {
-		c.logger.Error("error writing OPML", slog.Any("error", err))
+	err = opml.Write(w, "Lavender feeds", feeds, time.Now())
+	lavenderOTEL.RecordBackup(ctx, "opml_export", time.Since(started), err)
+	lavenderOTEL.RecordBackupItems(ctx, "opml_export", "feeds", len(feeds))
+	span.SetAttributes(attribute.Int("opml.feeds", len(feeds)))
+
+	if err != nil {
+		c.logError(r.WithContext(ctx), "error writing OPML", err)
+		return
 	}
+
+	c.logger.InfoContext(ctx, "feeds exported as OPML", slog.Int("feeds", len(feeds)))
 }
 
 // importOPML adds the feeds of an uploaded OPML file to the account of the user. The workers fetch their articles.
@@ -288,15 +336,21 @@ func (c *Controller) importOPML(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.MultipartForm.RemoveAll() //nolint:errcheck // temporary files, nothing to do when it fails
 
-	file, _, err := r.FormFile("file")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		c.toast(w, r, components.ToastError, errorTitle, "Choose the OPML file first.")
 		return
 	}
 	defer file.Close()
 
+	ctx, span := lavenderOTEL.StartNewSpanWithName(r.Context(), "opml.import")
+	defer span.End()
+	started := time.Now()
+
 	parsed, err := opml.Parse(file)
 	if err != nil {
+		lavenderOTEL.RecordBackup(ctx, "opml_import", time.Since(started), err)
+		c.logger.InfoContext(ctx, "OPML rejected", slog.Any(lavenderLogger.ErrorKey, err))
 		c.toast(w, r, components.ToastError, errorTitle, "The file could not be imported: "+err.Error()+".")
 		return
 	}
@@ -307,10 +361,19 @@ func (c *Controller) importOPML(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := c.store.ImportFeeds(user.Id, feeds)
+	lavenderOTEL.RecordBackup(ctx, "opml_import", time.Since(started), err)
+	lavenderOTEL.RecordBackupItems(ctx, "opml_import", "feeds", result.Feeds)
+	lavenderOTEL.RecordBackupItems(ctx, "opml_import", "folders", result.Folders)
+	lavenderOTEL.RecordBackupSize(ctx, "opml_import", header.Size)
+	span.SetAttributes(attribute.Int("opml.feeds", len(parsed)), attribute.Int("opml.feeds.added", result.Feeds), attribute.Int("opml.feeds.invalid", result.Invalid))
+
 	if err != nil {
-		c.fail(w, r, errorTitle, err)
+		c.fail(w, r.WithContext(ctx), errorTitle, err)
 		return
 	}
+
+	c.logger.InfoContext(ctx, "feeds imported from OPML", slog.Int("feeds", len(parsed)), slog.Int("added", result.Feeds),
+		slog.Int("folders", result.Folders), slog.Int("existing", result.Existing), slog.Int("invalid", result.Invalid))
 
 	c.answerWithSidebar(w, r, user.Id, components.ToastSuccess, "Feeds imported", opmlSummary(len(parsed), result))
 }
@@ -368,7 +431,7 @@ func (c *Controller) answerWithSidebar(w http.ResponseWriter, r *http.Request, u
 		}
 	}
 	if err != nil {
-		c.logger.Error("error loading the sidebar", slog.Any("error", err))
+		c.logError(r, "error loading the sidebar", err)
 	}
 
 	c.toast(w, r, variant, title, message)
@@ -406,16 +469,18 @@ func summary(c backup.Counts) string {
 func (c *Controller) fail(w http.ResponseWriter, r *http.Request, title string, err error) {
 	var invalid store.InvalidError
 	if errors.As(err, &invalid) {
+		c.logger.InfoContext(r.Context(), "action rejected", slog.String("action", actionOf(r)), slog.String("reason", invalid.Message))
 		c.toast(w, r, components.ToastError, title, invalid.Message)
 		return
 	}
 
-	c.logger.Error(title, slog.Any("error", err))
+	c.logError(r, title, err)
 	c.toast(w, r, components.ToastError, title, genericError)
 }
 
 // toast answers 200, as htmx does not swap 4xx responses.
 func (c *Controller) toast(w http.ResponseWriter, r *http.Request, variant components.ToastVariant, title, message string) {
+	lavenderOTEL.RecordAction(r.Context(), actionOf(r), resultOf(variant))
 	_ = components.ToastOOB(components.ToastProps{Variant: variant, Title: title, Message: message}).Render(r.Context(), w)
 }
 
@@ -466,6 +531,7 @@ func (c *Controller) twoFactorEnable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c.logger.InfoContext(r.Context(), "two-factor authentication turned on", slog.String(lavenderLogger.UserIDKey, user.Id))
 	c.renderTwoFactor(w, r, pages.TwoFactorState{Codes: codes})
 	c.toast(w, r, components.ToastSuccess, "", "Two-factor authentication is on.")
 }
@@ -484,6 +550,7 @@ func (c *Controller) twoFactorRecovery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c.logger.InfoContext(r.Context(), "two-factor recovery codes renewed", slog.String(lavenderLogger.UserIDKey, user.Id))
 	c.renderTwoFactor(w, r, pages.TwoFactorState{Codes: codes})
 }
 
@@ -500,6 +567,7 @@ func (c *Controller) twoFactorDisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c.logger.InfoContext(r.Context(), "two-factor authentication turned off", slog.String(lavenderLogger.UserIDKey, user.Id))
 	c.renderTwoFactor(w, r, pages.TwoFactorState{})
 	c.toast(w, r, components.ToastInfo, "", "Two-factor authentication is off.")
 }
@@ -511,7 +579,7 @@ func (c *Controller) renderTwoFactor(w http.ResponseWriter, r *http.Request, sta
 
 	enabled, left, err := c.mfa.Status(user.Id)
 	if err != nil {
-		c.logger.Error("error finding two-factor authentication", slog.Any("error", err))
+		c.logError(r, "error finding two-factor authentication", err)
 		c.toast(w, r, components.ToastError, "Something went wrong", genericError)
 
 		return
@@ -531,14 +599,85 @@ func (c *Controller) twoFactorFail(w http.ResponseWriter, r *http.Request, title
 	switch {
 	case errors.As(err, &invalid):
 		message = invalid.Message
+		c.logger.InfoContext(r.Context(), "action rejected", slog.String("action", actionOf(r)), slog.String("reason", message))
 	case errors.Is(err, mfa.ErrInvalid):
 		message = "That code is not right."
+		c.logger.InfoContext(r.Context(), "action rejected", slog.String("action", actionOf(r)), slog.String("reason", "wrong code"))
 	case errors.Is(err, mfa.ErrLocked):
 		message = "Too many wrong codes. Try again in a few minutes."
+		c.logger.WarnContext(r.Context(), "two-factor authentication locked", slog.String("action", actionOf(r)))
 	default:
-		c.logger.Error(title, slog.Any("error", err))
+		c.logError(r, title, err)
 	}
 
 	w.Header().Set("HX-Reswap", "none")
 	c.toast(w, r, components.ToastError, title, message)
+}
+
+// logError logs the error of a request with its trace id, and marks the trace of the request as failed.
+func (c *Controller) logError(r *http.Request, message string, err error) {
+	lavenderOTEL.RecordError(r.Context(), err)
+	c.logger.ErrorContext(r.Context(), message, slog.Any(lavenderLogger.ErrorKey, err))
+}
+
+// actionOf is the route of the request, which names what the user did.
+func actionOf(r *http.Request) string {
+	if routeCtx := chi.RouteContext(r.Context()); routeCtx != nil && routeCtx.RoutePattern() != "" {
+		return routeCtx.RoutePattern()
+	}
+
+	return "unknown"
+}
+
+func resultOf(variant components.ToastVariant) string {
+	switch variant {
+	case components.ToastError:
+		return "error"
+	case components.ToastSuccess:
+		return "success"
+	default:
+		return "info"
+	}
+}
+
+func countAttributes(c backup.Counts) []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.Int("backup.folders", c.Folders),
+		attribute.Int("backup.feeds", c.Feeds),
+		attribute.Int("backup.articles", c.Articles),
+		attribute.Int("backup.saved", c.Saved),
+		attribute.Int("backup.icons", c.Icons),
+	}
+}
+
+func countAttrs(c backup.Counts) []any {
+	return []any{
+		slog.Int("folders", c.Folders),
+		slog.Int("feeds", c.Feeds),
+		slog.Int("articles", c.Articles),
+		slog.Int("saved", c.Saved),
+		slog.Int("icons", c.Icons),
+	}
+}
+
+// recordCounts counts what a backup or an import held.
+func recordCounts(ctx context.Context, operation string, c backup.Counts) {
+	lavenderOTEL.RecordBackupItems(ctx, operation, "folders", c.Folders)
+	lavenderOTEL.RecordBackupItems(ctx, operation, "feeds", c.Feeds)
+	lavenderOTEL.RecordBackupItems(ctx, operation, "articles", c.Articles)
+	lavenderOTEL.RecordBackupItems(ctx, operation, "saved", c.Saved)
+	lavenderOTEL.RecordBackupItems(ctx, operation, "icons", c.Icons)
+}
+
+// countingWriter counts the bytes that are written through it, the size of a backup that is streamed.
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+
+	return n, err
 }

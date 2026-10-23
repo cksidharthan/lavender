@@ -49,7 +49,7 @@ func Sidebar(p SidebarProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " class=\"fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 data-[open]:translate-x-0 md:static md:translate-x-0\"><div class=\"flex h-14 shrink-0 items-center border-b border-slate-100 px-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " class=\"fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 data-[open]:translate-x-0 md:static md:translate-x-0\"><div class=\"flex min-h-16 shrink-0 items-center border-b border-slate-100 px-4 pt-3 pb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

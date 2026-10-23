@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,4 +54,48 @@ func TestRequestLogger(t *testing.T) {
 			assert.Empty(t, buf.String(), path)
 		}
 	})
+}
+
+func TestRequestLoggerFields(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	router := chi.NewRouter()
+	router.Use(RequestLogger(logger))
+	router.Get("/users/{id}", func(_ http.ResponseWriter, r *http.Request) { NoteUser(r.Context(), "user-1") })
+
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/users/42", nil))
+
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	assert.Equal(t, "/users/{id}", entry["route"], "the route pattern next to the path")
+	assert.Equal(t, "/users/42", entry["path"])
+	assert.Equal(t, "user-1", entry["user_id"])
+}
+
+func TestRequestLoggerAddsRequestID(t *testing.T) {
+	var buf bytes.Buffer
+	// the context attributes are what put the request id on the records of the handlers
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	router := chi.NewRouter()
+	router.Use(RequestLogger(logger))
+	router.Get("/x", func(http.ResponseWriter, *http.Request) {})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("X-Request-Id", "req-42")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148")
+	req.Header.Set("HX-Request", "true")
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, "req-42", rec.Header().Get("X-Request-Id"))
+
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	assert.Equal(t, "mobile", entry["device"])
+	assert.Equal(t, true, entry["htmx"])
+	assert.Equal(t, false, entry["slow"])
+	assert.Contains(t, entry, "duration_ms")
+	assert.Contains(t, entry, "client_ip")
 }

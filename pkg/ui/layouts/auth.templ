@@ -5,12 +5,19 @@ import "github.com/cksidharthan/lavender/pkg/ui/components"
 // Auth is the shared shell for the login / register style pages.
 templ Auth(title string) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" style="background:#fff">
 		<head>
 			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title } · Lavender</title>
 			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
+			<link rel="manifest" href="/static/manifest.webmanifest"/>
+			<meta name="theme-color" content="#ffffff"/>
+			<meta name="mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-title" content="Lavender"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<script src="/static/htmx.min.js"></script>
 		</head>

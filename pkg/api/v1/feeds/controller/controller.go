@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/cksidharthan/lavender/pkg/feedfetch"
+	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
 	"github.com/cksidharthan/lavender/pkg/middlewares"
+	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/cksidharthan/lavender/pkg/pocketbase/db"
 	"github.com/cksidharthan/lavender/pkg/store"
 	"github.com/cksidharthan/lavender/pkg/ui/components"
@@ -22,6 +24,7 @@ import (
 	"github.com/cksidharthan/lavender/pkg/ui/view"
 	"github.com/go-chi/chi/v5"
 	"github.com/pocketbase/pocketbase/core"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -125,7 +128,7 @@ func (c *Controller) addFeed(w http.ResponseWriter, r *http.Request) {
 	// the feed is read once here, to be sure the url is a feed and to name it. Its articles are fetched by the workers.
 	result, err := c.fetch(r.Context(), feedURL)
 	if err != nil {
-		c.logger.Info("error fetching feed", slog.String("url", feedURL), slog.Any("error", err))
+		c.logger.InfoContext(r.Context(), "error fetching feed", slog.String("url", feedURL), slog.Any(lavenderLogger.ErrorKey, err))
 		c.toast(w, r, components.ToastError, errorTitle, fetchMessage(err))
 
 		return
@@ -134,6 +137,11 @@ func (c *Controller) addFeed(w http.ResponseWriter, r *http.Request) {
 	feed, err := c.store.AddFeed(user.Id, feedURL, r.PostFormValue("folder"), result.Meta)
 	if err == nil {
 		c.enqueuer.Enqueue(feed.ID)
+
+		host := hostOf(feedURL)
+		lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", feed.ID), attribute.String("server.address", host))
+		c.logger.InfoContext(r.Context(), "feed added", slog.String("feed_id", feed.ID), slog.String("server.address", host),
+			slog.String("feed_type", result.Meta.Type), slog.Int("articles", len(result.Items)), slog.Bool("in_folder", r.PostFormValue("folder") != ""))
 	}
 
 	c.done(w, r, user, err, "Feed added, its articles are being fetched.", errorTitle)
@@ -202,6 +210,9 @@ func (c *Controller) clearFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", r.PostFormValue("id")), attribute.Int64("articles.deleted", int64(deleted)))
+	c.logger.InfoContext(r.Context(), "stored posts of a feed deleted", slog.String("feed_id", r.PostFormValue("id")), slog.Int("deleted", int(deleted)))
+
 	// the page that is open shows the numbers and the posts of the feed
 	w.Header().Set("HX-Trigger", "reload-feed-page")
 
@@ -230,8 +241,13 @@ func (c *Controller) refreshFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.enqueuer.Enqueue(feed.ID)
+	lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", feed.ID))
+
+	queued := c.enqueuer.Enqueue(feed.ID)
+	waited := time.Now()
 	if !c.wait(r.Context(), feed.ID) {
+		c.logger.InfoContext(r.Context(), "feed refresh takes longer than the request waits", slog.String("feed_id", feed.ID), slog.Bool("queued", queued),
+			slog.Duration("waited", time.Since(waited)))
 		c.toast(w, r, components.ToastInfo, "", "The feed is still being refreshed, its articles will appear shortly.")
 		return
 	}
@@ -269,14 +285,22 @@ func (c *Controller) refreshAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	queued := 0
 	for _, id := range ids {
-		c.enqueuer.Enqueue(id)
+		if c.enqueuer.Enqueue(id) {
+			queued++
+		}
 	}
 
+	waited := time.Now()
 	finished := true
 	for _, id := range ids {
 		finished = c.wait(r.Context(), id) && finished
 	}
+
+	lavenderOTEL.SetAttributes(r.Context(), attribute.Int("feeds.count", len(ids)), attribute.Int("feeds.queued", queued), attribute.Bool("feeds.finished", finished))
+	c.logger.InfoContext(r.Context(), "all feeds refreshed", slog.Int("feeds", len(ids)), slog.Int("queued", queued), slog.Bool("finished", finished),
+		slog.Duration("waited", time.Since(waited)))
 
 	if !finished {
 		c.toast(w, r, components.ToastInfo, "", "The feeds are still being refreshed, their articles will appear shortly.")
@@ -314,6 +338,9 @@ func (c *Controller) deleteFeed(w http.ResponseWriter, r *http.Request) {
 	id := r.PostFormValue("id")
 	err := c.store.DeleteFeed(user.Id, id)
 	if err == nil {
+		lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", id))
+		c.logger.InfoContext(r.Context(), "feed deleted", slog.String("feed_id", id))
+
 		// the page that is open shows the feed, in its lists or its numbers
 		w.Header().Set("HX-Trigger", "reload-feed-page")
 		if viewing(r, id) {
@@ -341,6 +368,9 @@ func (c *Controller) toggleSaved(slug, kind, listName string) http.HandlerFunc {
 			c.fail(w, r, "Could not save the article", err)
 			return
 		}
+
+		lavenderOTEL.RecordSavedToggle(r.Context(), kind, active)
+		lavenderOTEL.SetAttributes(r.Context(), attribute.String("article.id", id), attribute.Bool("article.saved", active))
 
 		_ = pages.SaveButton(id, slug, active, false, true).Render(r.Context(), w)
 		_ = pages.SaveButton(id, slug, active, true, true).Render(r.Context(), w)
@@ -376,6 +406,8 @@ func (c *Controller) done(w http.ResponseWriter, r *http.Request, user *core.Rec
 		return
 	}
 
+	c.logger.InfoContext(r.Context(), "action completed", slog.String("action", actionOf(r)))
+
 	props := view.Sidebar(user, tree)
 	props.OOB = true
 
@@ -388,17 +420,20 @@ func (c *Controller) fail(w http.ResponseWriter, r *http.Request, title string, 
 
 	switch {
 	case errors.As(err, &invalid):
+		c.logger.InfoContext(r.Context(), "action rejected", slog.String("action", actionOf(r)), slog.String("reason", invalid.Message))
 		c.toast(w, r, components.ToastError, title, invalid.Message)
 	case errors.Is(err, store.ErrNotFound):
+		c.logger.InfoContext(r.Context(), "action rejected", slog.String("action", actionOf(r)), slog.String("reason", "not found"))
 		c.toast(w, r, components.ToastError, title, notFound)
 	default:
-		c.logger.Error(title, slog.Any("error", err))
+		c.logError(r, title, err)
 		c.toast(w, r, components.ToastError, title, genericError)
 	}
 }
 
 // toast answers 200, as htmx does not swap 4xx responses.
 func (c *Controller) toast(w http.ResponseWriter, r *http.Request, variant components.ToastVariant, title, message string) {
+	lavenderOTEL.RecordAction(r.Context(), actionOf(r), resultOf(variant))
 	_ = components.ToastOOB(components.ToastProps{Variant: variant, Title: title, Message: message}).Render(r.Context(), w)
 }
 
@@ -426,4 +461,39 @@ func reloadIfViewing(w http.ResponseWriter, r *http.Request, feedID string) {
 	if viewing(r, feedID) {
 		w.Header().Set("HX-Refresh", "true")
 	}
+}
+
+// logError logs the error of a request with its trace id, and marks the trace of the request as failed.
+func (c *Controller) logError(r *http.Request, message string, err error) {
+	lavenderOTEL.RecordError(r.Context(), err)
+	c.logger.ErrorContext(r.Context(), message, slog.Any(lavenderLogger.ErrorKey, err))
+}
+
+// actionOf is the route of the request, which names what the user did.
+func actionOf(r *http.Request) string {
+	if routeCtx := chi.RouteContext(r.Context()); routeCtx != nil && routeCtx.RoutePattern() != "" {
+		return routeCtx.RoutePattern()
+	}
+
+	return "unknown"
+}
+
+func resultOf(variant components.ToastVariant) string {
+	switch variant {
+	case components.ToastError:
+		return "error"
+	case components.ToastSuccess:
+		return "success"
+	default:
+		return "info"
+	}
+}
+
+// hostOf is the host of a url, empty when it can not be read.
+func hostOf(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil {
+		return u.Hostname()
+	}
+
+	return ""
 }

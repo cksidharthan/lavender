@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/cksidharthan/lavender/pkg/feedfetch"
+	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
+	"go.opentelemetry.io/otel/attribute"
 	_ "golang.org/x/image/webp"
 )
 
@@ -34,6 +36,31 @@ const (
 	// failedFor is how long an icon that could not be downloaded is not tried again.
 	failedFor = time.Hour
 )
+
+var (
+	// the reasons a download fails, the label of the metrics. errBadStatus is wrapped with the status code.
+	errBadStatus = errors.New("the icon answered with status")
+	errBadSize   = errors.New("the icon is empty or too big")
+	errNotImage  = errors.New("the url is not an image")
+)
+
+// downloadOutcome is the label of the result of a download for the metrics.
+func downloadOutcome(ctx context.Context, err error) string {
+	switch {
+	case err == nil:
+		return "success"
+	case ctx.Err() != nil:
+		return "cancelled"
+	case errors.Is(err, errBadStatus):
+		return "bad_status"
+	case errors.Is(err, errBadSize):
+		return "bad_size"
+	case errors.Is(err, errNotImage):
+		return "not_an_image"
+	default:
+		return "network"
+	}
+}
 
 // ErrUnavailable is returned when there is no usable icon at the url.
 var ErrUnavailable = errors.New("icon unavailable")
@@ -127,8 +154,19 @@ func isSquarish(icon Icon) bool {
 // still returned when it can not be downloaded again.
 func (c *Cache) Get(ctx context.Context, iconURL string) (Icon, error) {
 	if _, err := feedfetch.ParseURL(iconURL); err != nil {
+		lavenderOTEL.RecordIconLookup(ctx, "unavailable")
 		return Icon{}, ErrUnavailable
 	}
+
+	ctx, span := lavenderOTEL.StartNewSpanWithName(ctx, "iconcache.Get")
+	defer span.End()
+
+	// the result of the lookup, for the metrics and the trace
+	outcome := "error"
+	defer func() {
+		span.SetAttributes(attribute.String("icon.lookup", outcome))
+		lavenderOTEL.RecordIconLookup(ctx, outcome)
+	}()
 
 	key := sum(iconURL)
 
@@ -141,8 +179,10 @@ func (c *Cache) Get(ctx context.Context, iconURL string) (Icon, error) {
 		age := c.now().Sub(stored.meta.FetchedAt)
 		switch {
 		case stored.meta.ContentType == "" && age < failedFor:
+			outcome = "failed_cached"
 			return Icon{}, ErrUnavailable
 		case stored.meta.ContentType != "" && age < freshFor:
+			outcome = "hit"
 			return stored.icon(), nil
 		}
 	}
@@ -154,20 +194,32 @@ func (c *Cache) Get(ctx context.Context, iconURL string) (Icon, error) {
 		}
 
 		if hasStored && stored.meta.ContentType != "" {
+			outcome = "stale"
 			return stored.icon(), nil
 		}
 
+		outcome = "unavailable"
 		c.write(key, meta{FetchedAt: c.now()}, nil)
 
 		return Icon{}, ErrUnavailable
 	}
 
+	outcome = "miss"
 	c.write(key, meta{ContentType: icon.ContentType, FetchedAt: icon.FetchedAt}, icon.Data)
 
 	return icon, nil
 }
 
-func (c *Cache) download(ctx context.Context, iconURL string) (Icon, error) {
+func (c *Cache) download(ctx context.Context, iconURL string) (icon Icon, err error) {
+	ctx, span := lavenderOTEL.StartNewSpanWithName(ctx, "iconcache.download")
+	started := time.Now()
+
+	defer func() {
+		lavenderOTEL.RecordError(ctx, err)
+		lavenderOTEL.RecordIconDownload(ctx, downloadOutcome(ctx, err), time.Since(started))
+		span.End()
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, iconURL, nil)
 	if err != nil {
 		return Icon{}, err
@@ -182,7 +234,7 @@ func (c *Cache) download(ctx context.Context, iconURL string) (Icon, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return Icon{}, fmt.Errorf("the icon answered with status %d", resp.StatusCode)
+		return Icon{}, fmt.Errorf("%w %d", errBadStatus, resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxIconBytes+1))
@@ -190,12 +242,12 @@ func (c *Cache) download(ctx context.Context, iconURL string) (Icon, error) {
 		return Icon{}, err
 	}
 	if len(data) == 0 || len(data) > maxIconBytes {
-		return Icon{}, errors.New("the icon is empty or too big")
+		return Icon{}, errBadSize
 	}
 
 	contentType, ok := imageType(data, resp.Header.Get("Content-Type"))
 	if !ok {
-		return Icon{}, errors.New("the url is not an image")
+		return Icon{}, errNotImage
 	}
 
 	return Icon{Data: data, ContentType: contentType, FetchedAt: c.now()}, nil

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/cksidharthan/lavender/pkg/buildinfo"
 	"github.com/cksidharthan/lavender/pkg/config"
 	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
 	"go.opentelemetry.io/otel"
@@ -40,7 +41,15 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 		context.Background(),
 		resource.WithFromEnv(),
 		resource.WithTelemetrySDK(),
-		resource.WithProcess(),
+		// the process detectors without WithProcessOwner: it looks up the current user, which fails in the scratch
+		// image (no cgo, no $USER, no passwd file) and would keep the application from starting.
+		resource.WithProcessPID(),
+		resource.WithProcessExecutableName(),
+		resource.WithProcessExecutablePath(),
+		resource.WithProcessCommandArgs(),
+		resource.WithProcessRuntimeName(),
+		resource.WithProcessRuntimeVersion(),
+		resource.WithProcessRuntimeDescription(),
 		resource.WithOS(),
 		resource.WithContainer(),
 		resource.WithHost(),
@@ -53,7 +62,10 @@ func New(logger *slog.Logger, cfg *config.Config) (*LavenderOTEL, error) {
 		resource.NewWithAttributes(
 			"",
 			semconv.ServiceNameKey.String(cfg.OTELServiceName),
+			semconv.ServiceVersionKey.String(buildinfo.Version),
+			attribute.String("deployment.environment.name", cfg.Environment),
 			attribute.String("environment", cfg.Environment),
+			attribute.String("vcs.revision", buildinfo.Revision()),
 		),
 		customResource,
 	)

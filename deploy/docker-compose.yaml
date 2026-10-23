@@ -5,6 +5,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
     image: lavender:local
     container_name: lavender
     restart: unless-stopped
@@ -27,8 +29,8 @@ services:
       otel-lgtm:
         condition: service_healthy
     healthcheck:
-      # the image is built from scratch and only ships a static curl
-      test: ["CMD", "/usr/bin/curl", "-fsS", "http://localhost:8080/api/v1/healthz"]
+      # the image is built from scratch, it ships a small health check binary
+      test: ["CMD", "/healthcheck"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -44,6 +46,10 @@ services:
       - "4318:4318" # otlp http
     volumes:
       - lgtm-data:/data
+      # the lavender dashboards: the provider file is picked up next to the ones of the image, it reads the dashboards
+      # from the mounted folder. Grafana rescans it every 30s, so an edited dashboard shows without a restart.
+      - ../monitoring/grafana/provisioning/dashboards/lavender.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/lavender.yaml:ro
+      - ../monitoring/grafana/dashboards:/otel-lgtm/lavender-dashboards:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health || exit 1"]
       interval: 10s
