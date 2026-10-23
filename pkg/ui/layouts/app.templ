@@ -5,28 +5,49 @@ import "github.com/cksidharthan/lavender/pkg/ui/components"
 // App is the shell for the signed in pages: a sidebar with the feeds on the left and the page content on the right.
 templ App(title string, sidebar components.SidebarProps) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" style="background:#fff">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="referrer" content="no-referrer"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title } · Lavender</title>
 			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
+			<link rel="manifest" href="/static/manifest.webmanifest"/>
+			<meta name="theme-color" content="#ffffff"/>
+			<meta name="mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-title" content="Lavender"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<script src="/static/htmx.min.js"></script>
 		</head>
-		<body class="h-dvh bg-slate-50 font-sans text-slate-950 antialiased">
+		<body class="h-dvh overflow-hidden bg-slate-50 font-sans text-slate-950 antialiased">
 			<div class="flex h-dvh">
 				@components.Sidebar(sidebar)
 				<div id="sidebar-backdrop" class="fixed inset-0 z-30 hidden bg-slate-950/30 data-[open]:block md:hidden" onclick="toggleSidebar(false)"></div>
 				<div class="flex min-w-0 flex-1 flex-col">
-					<header class="flex h-12 items-center gap-3 border-b border-slate-200 bg-white px-4 md:hidden">
-						<button type="button" aria-label="Open menu" onclick="toggleSidebar(true)" class="-ml-1.5 flex size-9 cursor-pointer items-center justify-center rounded-md text-slate-600 hover:bg-slate-100">
-							<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+					<header class="grid min-h-16 grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-slate-200 bg-white/90 px-3 pt-3 pb-2 backdrop-blur md:hidden">
+						<button type="button" aria-label="Open menu" onclick="toggleSidebar(true)" class="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100">
+							<svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h16"></path></svg>
 						</button>
-						<span class="font-semibold text-indigo-950">Lavender</span>
+						<a href="/" { components.ContentLink("/")... } class="flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-indigo-950">
+							@components.LogoMark("size-7 text-brand")
+							<span>Lavender</span>
+						</a>
+						<button
+							type="button"
+							aria-label="Refresh all feeds"
+							hx-post="/api/v1/feeds/refresh-all"
+							hx-swap="none"
+							hx-disabled-elt="this"
+							hx-on::after-request="reloadFeedPage()"
+							class="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100 disabled:opacity-50"
+						>
+							@components.IconRefresh()
+						</button>
 					</header>
-					<main id="content" class="flex-1 overflow-y-auto p-6">
+					<main id="content" class="flex-1 overflow-y-auto px-4 pt-5 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
 						{ children... }
 					</main>
 				</div>
@@ -71,6 +92,47 @@ templ App(title string, sidebar components.SidebarProps) {
 					document.getElementById('sidebar').toggleAttribute('data-open', open);
 					document.getElementById('sidebar-backdrop').toggleAttribute('data-open', open);
 				}
+				// a long swipe to the right closes the article, unless it starts in something that scrolls sideways
+				(function () {
+					var panel = document.getElementById('article-panel');
+					var start = null;
+					function scrollsSideways(el) {
+						for (; el && el !== panel; el = el.parentElement) {
+							if (el.scrollWidth > el.clientWidth && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
+						}
+						return false;
+					}
+					panel.addEventListener('touchstart', function (e) {
+						var t = e.touches[0];
+						start = e.touches.length === 1 && !scrollsSideways(e.target) ? { x: t.clientX, y: t.clientY } : null;
+					}, { passive: true });
+					panel.addEventListener('touchend', function (e) {
+						if (!start) return;
+						var t = e.changedTouches[0];
+						var dx = t.clientX - start.x, dy = t.clientY - start.y;
+						if (dx > 100 && dx > Math.abs(dy) * 2) panel.close();
+						start = null;
+					}, { passive: true });
+				})();
+				// swipe in from the left edge to open the sidebar on small screens, swipe left to close it
+				(function () {
+					var start = null;
+					document.addEventListener('touchstart', function (e) {
+						var t = e.touches[0];
+						var open = document.getElementById('sidebar').hasAttribute('data-open');
+						start = e.touches.length === 1 && !document.getElementById('article-panel').open && (open || t.clientX < 28) ? { x: t.clientX, y: t.clientY, open: open } : null;
+					}, { passive: true });
+					document.addEventListener('touchend', function (e) {
+						if (!start || window.innerWidth >= 768) return;
+						var t = e.changedTouches[0];
+						var dx = t.clientX - start.x, dy = t.clientY - start.y;
+						if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+							if (!start.open && dx > 0) toggleSidebar(true);
+							else if (start.open && dx < 0) toggleSidebar(false);
+						}
+						start = null;
+					}, { passive: true });
+				})();
 				// highlight the sidebar link of the page that is showing and close the mobile sidebar after navigating
 				// a link is current for its own page, and the links of a section for the pages inside it: Settings for its tabs
 				function isCurrent(path, exact) {
