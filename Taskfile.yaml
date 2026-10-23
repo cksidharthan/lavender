@@ -6,6 +6,25 @@ tasks:
     cmds:
       - task --list-all
 
+  fmt:
+    desc: format the project files
+    cmds:
+      - go fmt ./...
+      - go tool goimports -w .
+
+  dev-setup:
+    desc: installs all developer clis required to work with the project
+    cmds:
+      - brew install golang
+      - brew install golangci-lint
+      - brew install tailwindcss
+
+  lint:
+    desc: run linters on the project
+    cmds:
+      - golangci-lint run
+      - templ fmt .
+
   deps:
     desc: pull all go dependencies
     cmds:
@@ -13,9 +32,21 @@ tasks:
       - go mod tidy
       - go mod verify
 
+  css:
+    desc: build the tailwind stylesheet (committed, as it is embedded into the binary)
+    cmds:
+      - tailwindcss -i pkg/ui/static/input.css -o pkg/ui/static/app.css --minify
+
+  generate:
+    desc: generate go code from the templ files and build the tailwind stylesheet
+    cmds:
+      - go tool templ generate
+      - task: css
+
   run:
     desc: run the application
     cmds:
+      - task: generate
       - go run main.go
 
   test:

@@ -18,6 +18,7 @@ services:
       OTEL_PORT: "4317"
       METRICS_UPLOAD_INTERVAL_SECS: "10"
       POCKETBASE_DATA_DIR: /data/pb_data
+      ICON_CACHE_DIR: /data/icons
     ports:
       - "8080:8080"
     volumes:
@@ -27,7 +28,7 @@ services:
         condition: service_healthy
     healthcheck:
       # the image is built from scratch and only ships a static curl
-      test: ["CMD", "/usr/bin/curl", "-fsS", "http://localhost:8080/healthz"]
+      test: ["CMD", "/usr/bin/curl", "-fsS", "http://localhost:8080/api/v1/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5

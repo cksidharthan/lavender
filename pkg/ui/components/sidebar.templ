@@ -1,0 +1,393 @@
+package components
+
+const (
+	iconClass     = "size-4 shrink-0"
+	menuItemBase  = "flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition "
+	menuItemClass = menuItemBase + "text-slate-700 hover:bg-slate-100"
+	// menuItemDanger is for the items that delete something. It must not share the colors of menuItemClass, the
+	// stylesheet decides which of two text colors wins, not the order they are written in.
+	menuItemDanger = menuItemBase + "text-red-600 hover:bg-red-50"
+)
+
+// Sidebar is the left navigation of the App layout: the profile, the feeds grouped in folders and the settings link.
+// The dialogs of the folder and feed actions are part of it, so they are replaced with the sidebar and always list
+// the current folders.
+templ Sidebar(p SidebarProps) {
+	<aside
+		id="sidebar"
+		{ sidebarAttrs(p)... }
+		class="fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 data-[open]:translate-x-0 md:static md:translate-x-0"
+	>
+		<div class="flex h-14 shrink-0 items-center border-b border-slate-100 px-4">
+			@LogoSmall()
+		</div>
+		<div class="shrink-0 px-3 pt-3">
+			<nav aria-label="Lists" class="flex flex-col gap-0.5">
+				@navItem("/", "Home", "M3 11.5 12 4l9 7.5M5 10v10h5v-6h4v6h5V10")
+				@navItem("/today", "Today", "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4")
+			</nav>
+			<nav aria-label="Saved" class="mt-4 flex flex-col gap-0.5">
+				@navItem("/favourites", "Favourites", "M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.9 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z")
+				@navItem("/read-later", "Read later", "M6 4h12v17l-6-4-6 4z")
+			</nav>
+		</div>
+		<nav class="mt-5 flex-1 overflow-y-auto p-3 pt-0" aria-label="Feeds">
+			<div class="mb-1 flex items-center justify-between px-2">
+				<h2 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Feeds</h2>
+				<div class="flex items-center">
+					<button
+						type="button"
+						aria-label="Refresh all feeds"
+						title="Refresh all feeds"
+						hx-post="/api/v1/feeds/refresh-all"
+						hx-swap="none"
+						hx-disabled-elt="this"
+						hx-on::after-request="reloadFeedPage()"
+						class="flex size-7 cursor-pointer items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-brand disabled:cursor-progress"
+					>
+						@IconRefresh()
+					</button>
+					<button
+						type="button"
+						aria-label="Add feed or folder"
+						title="Add"
+						popovertarget="add-menu"
+						aria-haspopup="menu"
+						class="flex size-7 cursor-pointer items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-brand"
+					>
+						@IconPlus()
+					</button>
+				</div>
+				<div id="add-menu" popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
+					<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="add-feed-modal">
+						@IconPlus()
+						Add feed
+					</button>
+					<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="create-folder-modal">
+						<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 11v5M9.5 13.5h5"></path></svg>
+						Create folder
+					</button>
+				</div>
+			</div>
+			for _, folder := range p.Folders {
+				if folder.ID == "" {
+					@feedList(folder.Feeds)
+				} else {
+					<details open class="group/folder relative">
+						<summary class="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 select-none hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+							<svg class="size-3.5 shrink-0 text-slate-400 transition group-open/folder:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+							<svg class="size-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+							<span class="truncate">{ folder.Name }</span>
+						</summary>
+						@folderMenu(folder)
+						<div class="ml-4 border-l border-slate-100 pl-1">
+							@feedList(folder.Feeds)
+						</div>
+					</details>
+				}
+			}
+		</nav>
+		<div class="border-t border-slate-100 p-3 pb-4">
+			<a href="/settings" { ContentLink("/settings")... } data-nav class="flex items-center gap-3 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 aria-[current=page]:bg-slate-100 aria-[current=page]:text-brand">
+				<span class="flex size-8 shrink-0 items-center justify-center">
+					<svg class="size-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<circle cx="12" cy="12" r="3"></circle>
+						<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+					</svg>
+				</span>
+				Settings
+			</a>
+			<div class="mt-1 flex items-center gap-3 rounded-md px-2.5 py-1.5">
+				<span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-semibold text-brand" aria-hidden="true">{ initials(p.UserName) }</span>
+				<div class="min-w-0 flex-1">
+					<p class="truncate text-sm font-semibold text-slate-900">{ p.UserName }</p>
+				</div>
+				<button
+					type="button"
+					aria-label="Logout"
+					title="Logout"
+					{ OpenModal("logout-modal")... }
+					class="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+				>
+					<svg class="size-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>
+				</button>
+			</div>
+		</div>
+		@AddFeedModal(p.Folders)
+		@CreateFolderModal()
+		@RenameFolderModal()
+		@DeleteFolderModal()
+		@FeedSettingsModal()
+		@ClearFeedModal()
+		@RenameFeedModal()
+		@DeleteFeedModal()
+	</aside>
+}
+
+templ feedList(feeds []Feed) {
+	<ul>
+		for _, f := range feeds {
+			<li class="group/feed relative flex items-center rounded-md hover:bg-slate-100 has-[:popover-open]:bg-slate-100 has-[a[aria-current=page]]:bg-brand/10">
+				<a href={ templ.SafeURL("/feeds/" + f.ID) } { ContentLink("/feeds/" + f.ID)... } data-nav class="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-1 pl-2 text-sm text-slate-700 aria-[current=page]:font-medium aria-[current=page]:text-brand">
+					@FeedIcon(f.IconURL, f.Title, "size-4")
+					<span class="truncate">{ f.Title }</span>
+				</a>
+				@feedMenu(f)
+			</li>
+		}
+	</ul>
+}
+
+// folderMenu is the menu next to a folder name. It sits on top of the folder summary, not inside it, so
+// opening it does not collapse the folder.
+templ folderMenu(folder Folder) {
+	<button
+		type="button"
+		popovertarget={ folderMenuID(folder.ID) }
+		aria-label={ "Options for " + folder.Name }
+		aria-haspopup="menu"
+		class="absolute top-1 right-0 flex size-7 cursor-pointer items-center justify-center rounded-md text-slate-400 opacity-0 transition group-hover/folder:opacity-100 group-focus-within/folder:opacity-100 group-has-[:popover-open]/folder:opacity-100 hover:text-slate-700"
+	>
+		<svg class={ iconClass } viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>
+	</button>
+	<div id={ folderMenuID(folder.ID) } popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
+		<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="add-feed-modal" data-folder={ folder.ID }>
+			@IconPlus()
+			Add feed
+		</button>
+		<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="rename-folder-modal" data-id={ folder.ID } data-name={ folder.Name }>
+			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+			Rename folder
+		</button>
+		<hr class="my-1 border-slate-100"/>
+		<button type="button" role="menuitem" class={ menuItemDanger } data-open-modal="delete-folder-modal" data-id={ folder.ID } data-name={ folder.Name }>
+			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"></path></svg>
+			Delete folder
+		</button>
+	</div>
+}
+
+// feedMenu is the per feed menu. It is a popover, so it renders in the top layer and is not clipped by the
+// scrolling sidebar; the script in the App layout places it to the right of the sidebar.
+templ feedMenu(f Feed) {
+	<button
+		type="button"
+		popovertarget={ "feed-menu-" + f.ID }
+		aria-label={ "Options for " + f.Title }
+		aria-haspopup="menu"
+		class="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 opacity-0 transition group-hover/feed:opacity-100 group-focus-within/feed:opacity-100 group-has-[:popover-open]/feed:opacity-100 hover:text-slate-700"
+	>
+		<svg class={ iconClass } viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>
+	</button>
+	<div id={ "feed-menu-" + f.ID } popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
+		<button type="button" role="menuitem" class={ menuItemClass } hx-post="/api/v1/feeds/refresh" hx-vals={ IDVals(f.ID) } hx-on::after-request="reloadFeedPage()" hx-swap="none">
+			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"></path></svg>
+			Refresh
+		</button>
+		<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="rename-feed-modal" data-id={ f.ID } data-name={ f.Title }>
+			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+			Rename
+		</button>
+		<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="feed-settings-modal" data-settings={ settingsJSON(f) }>
+			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="8" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+			Feed settings
+		</button>
+		<hr class="my-1 border-slate-100"/>
+		<button type="button" role="menuitem" class={ menuItemDanger } data-open-modal="delete-feed-modal" data-id={ f.ID } data-name={ f.Title }>
+			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"></path></svg>
+			Delete
+		</button>
+	</div>
+}
+
+// IconRefresh spins while the request of the button it is in is running.
+templ IconRefresh() {
+	<svg class="size-4 in-[.htmx-request]:animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"></path></svg>
+}
+
+// FeedIcon is the icon of a feed. The letter of the feed shows below it, so there is something when the icon is
+// missing or does not load, in which case the image removes itself. The sizeClass sets the size of the icon.
+// navItem is a link of the lists at the top of the sidebar. It loads its page into the content area.
+templ navItem(href, label, iconPath string) {
+	<a href={ templ.SafeURL(href) } { ContentLink(href)... } data-nav class="flex items-center gap-3 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 aria-[current=page]:bg-brand/10 aria-[current=page]:text-brand">
+		<svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={ iconPath }></path></svg>
+		{ label }
+	</a>
+}
+
+templ FeedIcon(iconURL, title, sizeClass string) {
+	<span class={ "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 text-[0.625rem] leading-none font-semibold text-slate-500 " + sizeClass } aria-hidden="true">
+		{ feedInitial(title) }
+		if iconURL != "" {
+			<img src={ iconURL } alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" class="absolute inset-0 size-full bg-white object-contain"/>
+		}
+	</span>
+}
+
+templ IconPlus() {
+	<svg class="size-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+}
+
+// AddFeedModal is the dialog the plus menu opens. The folder can be picked from the folders of the user.
+templ AddFeedModal(folders []Folder) {
+	<dialog id="add-feed-modal" aria-labelledby="add-feed-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="add-feed-modal-title" class="text-lg font-semibold tracking-tight">Add feed</h2>
+		<form hx-post="/api/v1/feeds" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-4">
+			@TextField(FieldProps{ID: "feed-url", Name: "url", Label: "Feed URL", Type: "url", Placeholder: "https://example.com/feed.xml", Required: true})
+			<div class="mb-4">
+				<label for="feed-folder" class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Folder (optional)</label>
+				<select id="feed-folder" name="folder" class={ inputClass }>
+					<option value="">No folder</option>
+					for _, f := range folders {
+						if f.ID != "" {
+							<option value={ f.ID }>{ f.Name }</option>
+						}
+					}
+				</select>
+			</div>
+			@modalActions("Add feed")
+		</form>
+	</dialog>
+}
+
+templ CreateFolderModal() {
+	<dialog id="create-folder-modal" aria-labelledby="create-folder-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="create-folder-modal-title" class="text-lg font-semibold tracking-tight">Create folder</h2>
+		<form hx-post="/api/v1/folders" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-4">
+			@TextField(FieldProps{ID: "create-folder-name", Name: "name", Label: "Folder name", Type: "text", Placeholder: "E.g. News", Required: true})
+			@modalActions("Create")
+		</form>
+	</dialog>
+}
+
+// RenameFolderModal is filled with the folder it was opened for by the script in the App layout.
+templ RenameFolderModal() {
+	<dialog id="rename-folder-modal" aria-labelledby="rename-folder-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="rename-folder-modal-title" class="text-lg font-semibold tracking-tight">Rename folder</h2>
+		<form hx-post="/api/v1/folders/rename" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-4">
+			<input type="hidden" name="id" data-fill-id/>
+			@TextField(FieldProps{ID: "rename-folder-name", Name: "name", Label: "Folder name", Type: "text", Required: true})
+			@modalActions("Rename")
+		</form>
+	</dialog>
+}
+
+// DeleteFolderModal is filled with the folder it was opened for by the script in the App layout.
+templ DeleteFolderModal() {
+	<dialog id="delete-folder-modal" aria-labelledby="delete-folder-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="delete-folder-modal-title" class="text-lg font-semibold tracking-tight">Delete folder?</h2>
+		<p class="mt-2 text-slate-500 sm:text-sm">The folder <strong class="font-medium text-slate-700" data-fill-text></strong> will be deleted. Its feeds are kept and moved out of the folder.</p>
+		<form hx-post="/api/v1/folders/delete" hx-swap="none" hx-disabled-elt="find button[type=submit]">
+			<input type="hidden" name="id" data-fill-id/>
+			<div class="mt-6 flex justify-end gap-3">
+				@Button(ButtonProps{Variant: ButtonSecondary, Attrs: templ.Attributes{"onclick": "this.closest('dialog').close()"}}) {
+					Cancel
+				}
+				@Button(ButtonProps{Type: "submit", Variant: ButtonDanger}) {
+					Delete
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+templ modalActions(submit string) {
+	<div class="mt-6 flex justify-end gap-3">
+		@Button(ButtonProps{Variant: ButtonSecondary, Attrs: templ.Attributes{"onclick": "this.closest('dialog').close()"}}) {
+			Cancel
+		}
+		@Button(ButtonProps{Type: "submit"}) {
+			{ submit }
+		}
+	</div>
+}
+
+templ RenameFeedModal() {
+	<dialog id="rename-feed-modal" aria-labelledby="rename-feed-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="rename-feed-modal-title" class="text-lg font-semibold tracking-tight">Rename feed</h2>
+		<form hx-post="/api/v1/feeds/rename" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-4">
+			<input type="hidden" name="id" data-fill-id/>
+			@TextField(FieldProps{ID: "rename-feed-name", Name: "name", Label: "Feed name", Type: "text", Required: true})
+			@modalActions("Rename")
+		</form>
+	</dialog>
+}
+
+templ DeleteFeedModal() {
+	<dialog id="delete-feed-modal" aria-labelledby="delete-feed-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="delete-feed-modal-title" class="text-lg font-semibold tracking-tight">Delete feed?</h2>
+		<p class="mt-2 text-slate-500 sm:text-sm">You will stop following <strong class="font-medium text-slate-700" data-fill-text></strong>.</p>
+		<form hx-post="/api/v1/feeds/delete" hx-swap="none" hx-disabled-elt="find button[type=submit]">
+			<input type="hidden" name="id" data-fill-id/>
+			<div class="mt-6 flex justify-end gap-3">
+				@Button(ButtonProps{Variant: ButtonSecondary, Attrs: templ.Attributes{"onclick": "this.closest('dialog').close()"}}) {
+					Cancel
+				}
+				@Button(ButtonProps{Type: "submit", Variant: ButtonDanger}) {
+					Delete
+				}
+			</div>
+		</form>
+	</dialog>
+}
+
+// FeedSettingsModal is the settings dialog of a feed. The script of the App layout fills it with the settings of the
+// feed it is opened for.
+templ FeedSettingsModal() {
+	<dialog id="feed-settings-modal" aria-labelledby="feed-settings-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass + " sm:max-w-md" }>
+		<h2 id="feed-settings-modal-title" class="text-lg font-semibold tracking-tight">Feed settings</h2>
+		<form hx-post="/api/v1/feeds/settings" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-4">
+			<input type="hidden" name="id"/>
+			<div class="mb-4">
+				<label for="feed-refresh-minutes" class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Refresh every (minutes)</label>
+				<input id="feed-refresh-minutes" name="refresh_minutes" type="number" inputmode="numeric" min="5" max="1440" step="1" placeholder="Default" class={ inputClass }/>
+				<p class="mt-1.5 text-xs text-slate-500">Between 5 and 1440. Leave empty to use the default.</p>
+			</div>
+			<div class="mb-4">
+				<label for="feed-icon-override" class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Icon address</label>
+				<input id="feed-icon-override" name="icon_override" type="url" placeholder="https://example.com/icon.png" class={ inputClass }/>
+				<p class="mt-1.5 text-xs text-slate-500">Leave empty to use the icon of the feed.</p>
+			</div>
+			<div class="mb-1 flex flex-col gap-3">
+				@settingsCheckbox("auto_refresh", "Refresh automatically", "Turn off to refresh this feed only when you ask.")
+				@settingsCheckbox("hide_from_home", "Hide from the home page", "Its articles still show in the feed itself.")
+			</div>
+			@modalActions("Save")
+		</form>
+	</dialog>
+}
+
+templ settingsCheckbox(name, label, hint string) {
+	<label class="flex cursor-pointer items-start gap-3">
+		<input type="checkbox" name={ name } class="mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-brand sm:size-4"/>
+		<span class="text-slate-700 sm:text-sm">
+			<span class="block font-medium">{ label }</span>
+			<span class="block text-xs text-slate-500">{ hint }</span>
+		</span>
+	</label>
+}
+
+// MenuItemClass and MenuItemDanger are the classes of the items of a menu, for the menus outside this package.
+const (
+	MenuItemClass  = menuItemClass
+	MenuItemDanger = menuItemDanger
+)
+
+// ClearFeedModal asks before the stored posts of a feed are deleted.
+templ ClearFeedModal() {
+	<dialog id="clear-feed-modal" aria-labelledby="clear-feed-modal-title" onclick="if (event.target === this) this.close()" class={ dialogClass }>
+		<h2 id="clear-feed-modal-title" class="text-lg font-semibold tracking-tight">Delete cached posts?</h2>
+		<p class="mt-2 text-slate-500 sm:text-sm">All the stored posts of <strong class="font-medium text-slate-700" data-fill-text></strong> are deleted, with the ones you saved as a favourite or for later. The feed stays, and its posts come back with the next refresh.</p>
+		<form hx-post="/api/v1/feeds/clear" hx-swap="none" hx-disabled-elt="find button[type=submit]" hx-on::after-request="this.closest('dialog').close()">
+			<input type="hidden" name="id" data-fill-id/>
+			<div class="mt-6 flex justify-end gap-3">
+				@Button(ButtonProps{Variant: ButtonSecondary, Attrs: templ.Attributes{"onclick": "this.closest('dialog').close()"}}) {
+					Cancel
+				}
+				@Button(ButtonProps{Type: "submit", Variant: ButtonDanger}) {
+					Delete posts
+				}
+			</div>
+		</form>
+	</dialog>
+}

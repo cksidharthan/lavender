@@ -1,0 +1,32 @@
+package pages
+
+import (
+	"github.com/cksidharthan/lavender/pkg/ui/components"
+	"github.com/cksidharthan/lavender/pkg/ui/layouts"
+)
+
+templ Login() {
+	@layouts.Auth("Login") {
+		<h1 class={ components.TitleClass }>Login</h1>
+		<p class={ components.SubtitleClass }>Hi, Welcome back 👋</p>
+		<form hx-disabled-elt="find button[type=submit]" hx-post="/login" hx-swap="none">
+			@components.TextField(components.FieldProps{ID: "email", Name: "email", Label: "Email", Type: "email", Placeholder: "E.g. johndoe@email.com", Autocomplete: "email", Required: true})
+			@components.PasswordField(components.FieldProps{ID: "password", Name: "password", Label: "Password", Placeholder: "Enter your password", Autocomplete: "current-password", Required: true})
+			<div class="mt-1 mb-5 flex items-center justify-between">
+				<label class="inline-flex cursor-pointer items-center gap-2 py-1 sm:text-sm"><input type="checkbox" name="remember" class="size-5 rounded accent-brand sm:size-4"/> Remember Me</label>
+				@components.Link(components.LinkProps{Href: "/forgot-password"}) {
+					Forgot Password?
+				}
+			</div>
+			@components.Button(components.ButtonProps{Type: "submit", FullWidth: true}) {
+				Login
+			}
+		</form>
+		<p class="mt-5 text-center text-slate-700 sm:text-sm">
+			<span class="pr-2">Not registered yet?</span>
+			@components.Link(components.LinkProps{Href: "/register"}) {
+				Create an account ↗
+			}
+		</p>
+	}
+}

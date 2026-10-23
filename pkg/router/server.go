@@ -16,7 +16,6 @@ import (
 	"github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/go-chi/chi/v5"
 	pb "github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -65,17 +64,6 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 	}()
 
-	if !s.appConfig.PocketBaseAdminDisabled {
-		go func() {
-			if err := apis.Serve(s.pocketbaseApp, apis.ServeConfig{
-				HttpAddr:        fmt.Sprintf(":%d", s.appConfig.PocketBaseAdminPort),
-				ShowStartBanner: false,
-			}); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				errCh <- fmt.Errorf("error starting up pocketbase admin ui")
-			}
-		}()
-	}
-
 	select {
 	case err := <-errCh:
 		return fmt.Errorf("error in starting http server :%v", err)
@@ -122,22 +110,20 @@ func (s *Server) shutdown() error {
 	defer serverShutdownCtxCancel()
 
 	// drain in-flight requests first so their spans and logs are still exported.
-	err := s.http.Shutdown(serverShutdownContext)
+	httpErr := s.http.Shutdown(serverShutdownContext)
 	s.stopOngoing()
 
 	s.shutdownOTEL()
 
-	if err != nil {
-		return err
-	}
-
-	// OnTerminate gracefully stops the pocketbase admin server (bound by apis.Serve)
-	// and runs its other cleanup hooks, then the app bootstrap is cleared.
+	// pocketbase is cleaned up even if the http drain failed, so the db is always closed cleanly.
+	// OnTerminate runs the pocketbase cleanup hooks, then the app bootstrap is cleared.
 	terminateEvent := new(core.TerminateEvent)
 	terminateEvent.App = s.pocketbaseApp
-	if err := s.pocketbaseApp.OnTerminate().Trigger(terminateEvent, func(e *core.TerminateEvent) error {
+	pbErr := s.pocketbaseApp.OnTerminate().Trigger(terminateEvent, func(e *core.TerminateEvent) error {
 		return e.App.ClearBootstrap()
-	}); err != nil {
+	})
+
+	if err := errors.Join(httpErr, pbErr); err != nil {
 		return err
 	}
 

@@ -1,0 +1,12 @@
+package components
+
+type LinkProps struct {
+	Href  string
+	Attrs templ.Attributes // any extra attributes, e.g. hx-boost, target
+}
+
+templ Link(p LinkProps) {
+	<a href={ templ.SafeURL(p.Href) } class="font-medium text-brand underline-offset-4 transition hover:text-brand-dark hover:underline sm:text-sm" { p.Attrs... }>
+		{ children... }
+	</a>
+}

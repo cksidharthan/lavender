@@ -1,0 +1,56 @@
+package components
+
+type ConfirmModalProps struct {
+	ID           string
+	Title        string
+	Message      string
+	ConfirmLabel string
+	CancelLabel  string
+	Danger       bool
+	// ConfirmAttrs are put on the confirm button, e.g. hx-post, hx-delete, hx-target.
+	ConfirmAttrs templ.Attributes
+}
+
+// OpenModal returns the attributes that make an element open the modal with the given id.
+func OpenModal(id string) templ.Attributes {
+	return templ.Attributes{"onclick": "document.getElementById('" + id + "').showModal()"}
+}
+
+func confirmVariant(p ConfirmModalProps) ButtonVariant {
+	if p.Danger {
+		return ButtonDanger
+	}
+
+	return ButtonPrimary
+}
+
+func confirmAttrs(p ConfirmModalProps) templ.Attributes {
+	attrs := templ.Attributes{"onclick": "this.closest('dialog').close()"}
+	for k, v := range p.ConfirmAttrs {
+		attrs[k] = v
+	}
+
+	return attrs
+}
+
+// ConfirmModal is a confirmation dialog built on the native <dialog> element, so it needs no
+// extra javascript. Escape and a click on the backdrop close it.
+templ ConfirmModal(p ConfirmModalProps) {
+	<dialog
+		id={ p.ID }
+		aria-labelledby={ p.ID + "-title" }
+		onclick="if (event.target === this) this.close()"
+		class="m-auto w-[calc(100%-2rem)] max-w-sm scale-95 rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 opacity-0 shadow-2xl transition-[opacity,scale,display,overlay] duration-200 transition-discrete backdrop:bg-slate-950/40 backdrop:backdrop-blur-sm open:scale-100 open:opacity-100 starting:open:scale-95 starting:open:opacity-0"
+	>
+		<h2 id={ p.ID + "-title" } class="text-lg font-semibold tracking-tight">{ p.Title }</h2>
+		<p class="mt-2 text-slate-500 sm:text-sm">{ p.Message }</p>
+		<div class="mt-6 flex justify-end gap-3">
+			@Button(ButtonProps{Variant: ButtonSecondary, Attrs: templ.Attributes{"onclick": "this.closest('dialog').close()"}}) {
+				{ p.CancelLabel }
+			}
+			@Button(ButtonProps{Variant: confirmVariant(p), Attrs: confirmAttrs(p)}) {
+				{ p.ConfirmLabel }
+			}
+		</div>
+	</dialog>
+}

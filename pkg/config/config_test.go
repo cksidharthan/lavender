@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,13 @@ func TestNew(t *testing.T) {
 			OTELPort:                  4317,
 			MetricsUploadIntervalSecs: 10,
 
+			FeedWorkers:         2,
+			FeedRefreshInterval: 10 * time.Minute,
+
+			IconCacheDir: "./data/icons",
+
 			PocketBaseDataDir:       "./data/pb_data",
 			PocketBaseAdminDisabled: true,
-			PocketBaseAdminPort:     8090,
 		}
 
 		require.Equal(t, expectedConfig, config, "expectedConfig is not equal to actual config returned by New function")
@@ -52,9 +57,13 @@ func TestNew(t *testing.T) {
 			OTELPort:                  4317,
 			MetricsUploadIntervalSecs: 10,
 
+			FeedWorkers:         2,
+			FeedRefreshInterval: 10 * time.Minute,
+
+			IconCacheDir: "./data/icons",
+
 			PocketBaseDataDir:       "./data/pb_data",
 			PocketBaseAdminDisabled: true,
-			PocketBaseAdminPort:     8090,
 		}
 
 		require.Equal(t, expectedConfig, config, "expectedConfig is not equal to the actual config returned by New function")

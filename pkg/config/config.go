@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"time"
 
 	env "github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
@@ -23,10 +24,20 @@ type Config struct {
 	OTELPort                  int64  `env:"OTEL_PORT" envDefault:"4317" json:"otel_port"`
 	MetricsUploadIntervalSecs int    `env:"METRICS_UPLOAD_INTERVAL_SECS" envDefault:"10" json:"metrics_upload_interval_secs"`
 
+	// Feed workers
+	FeedWorkers         int           `env:"FEED_WORKERS" envDefault:"2"`
+	FeedRefreshInterval time.Duration `env:"FEED_REFRESH_INTERVAL" envDefault:"10m"`
+
+	// Where the icons of the feeds are kept after they are downloaded
+	IconCacheDir string `env:"ICON_CACHE_DIR" envDefault:"./data/icons"`
+
+	// SecretKey seals the secrets that have to be read back, like the one of two-factor authentication, and signs the
+	// tokens of signing in. It is 32 bytes in base64. Without it a key is made, and kept in the data directory.
+	SecretKey string `env:"SECRET_KEY"`
+
 	// Pocketbase config
 	PocketBaseDataDir       string `env:"POCKETBASE_DATA_DIR" envDefault:"./data/pb_data"`
 	PocketBaseAdminDisabled bool   `env:"POCKETBASE_ADMIN_DISABLED" envDefault:"true"`
-	PocketBaseAdminPort     int64  `env:"POCKETBASE_ADMIN_PORT" envDefault:"8090"`
 }
 
 func New() (*Config, error) {

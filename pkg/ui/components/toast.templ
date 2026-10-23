@@ -1,0 +1,63 @@
+package components
+
+// ToastContainer is the fixed bottom right stack the toasts appear in. Render it once in the layout.
+templ ToastContainer() {
+	<div
+		id={ ToastContainerID }
+		aria-live="polite"
+		class="pointer-events-none fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-3 sm:right-6 sm:bottom-6"
+	></div>
+}
+
+// ToastOOB sends a toast from an htmx response. It is appended to the ToastContainer through an
+// out of band swap, so return it next to (or instead of) the normal response content:
+//
+//	_ = components.ToastOOB(components.ToastProps{Variant: components.ToastSuccess, Message: "Saved"}).Render(ctx, w)
+//
+// It is not swapped when the response carries an HX-Redirect or HX-Refresh header.
+templ ToastOOB(p ToastProps) {
+	<div hx-swap-oob={ "beforeend:#" + ToastContainerID }>
+		@Toast(p)
+	</div>
+}
+
+// Toast is a single notification with a dismiss button and, unless it is persistent, a progress bar
+// showing the time left until it dismisses itself. Hovering a toast pauses the countdown.
+templ Toast(p ToastProps) {
+	<div
+		role={ p.role() }
+		data-toast
+		class="group pointer-events-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg shadow-slate-900/10 transition duration-200 starting:translate-y-2 starting:opacity-0"
+	>
+		<div class="flex items-start gap-3 p-4">
+			<svg class={ "mt-0.5 size-5 shrink-0 " + p.iconClass() } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d={ p.iconPath() }></path>
+			</svg>
+			<div class="min-w-0 flex-1 text-sm">
+				if p.Title != "" {
+					<p class="font-semibold text-slate-900">{ p.Title }</p>
+				}
+				<p class="text-slate-600">{ p.Message }</p>
+			</div>
+			<button
+				type="button"
+				aria-label="Dismiss"
+				onclick="this.closest('[data-toast]').remove()"
+				class="-m-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+			>
+				<svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M18 6 6 18M6 6l12 12"></path>
+				</svg>
+			</button>
+		</div>
+		if p.autoDismiss() {
+			<div class="h-1 w-full bg-slate-100">
+				<div
+					class={ "h-full origin-left animate-toast-progress group-hover:[animation-play-state:paused] " + p.barClass() }
+					style={ p.progressStyle() }
+					onanimationend="this.closest('[data-toast]').remove()"
+				></div>
+			</div>
+		}
+	</div>
+}

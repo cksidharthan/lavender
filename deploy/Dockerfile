@@ -31,6 +31,7 @@ COPY --from=builder --chown=65534:65534 /out/data /data
 COPY --from=builder --chown=65534:65534 /out/tmp /tmp
 
 ENV POCKETBASE_DATA_DIR=/data/pb_data
+ENV ICON_CACHE_DIR=/data/icons
 
 USER 65534:65534
 

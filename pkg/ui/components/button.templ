@@ -1,0 +1,54 @@
+package components
+
+type ButtonVariant int
+
+const (
+	ButtonPrimary ButtonVariant = iota
+	ButtonSecondary
+	ButtonDanger
+)
+
+type ButtonProps struct {
+	Variant   ButtonVariant
+	Type      string // button (default), submit or reset
+	FullWidth bool
+	Attrs     templ.Attributes // any extra attributes, e.g. hx-post, onclick, id
+}
+
+func buttonType(p ButtonProps) string {
+	if p.Type == "" {
+		return "button"
+	}
+
+	return p.Type
+}
+
+func buttonClass(p ButtonProps) string {
+	class := "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 text-base font-medium shadow-sm transition duration-150 select-none focus-visible:ring-4 focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60 sm:h-10 sm:text-sm "
+
+	switch p.Variant {
+	case ButtonSecondary:
+		class += "border-slate-200 bg-white text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-200"
+	case ButtonDanger:
+		class += "border-red-600 bg-red-600 text-white shadow-red-600/25 hover:bg-red-700 focus-visible:ring-red-600/25"
+	default:
+		class += "border-brand bg-brand text-white shadow-brand/25 hover:bg-brand-dark focus-visible:ring-brand/25"
+	}
+
+	if p.FullWidth {
+		class += " w-full"
+	}
+
+	return class
+}
+
+templ Button(p ButtonProps) {
+	<button type={ buttonType(p) } class={ buttonClass(p) } { p.Attrs... }>
+		{ children... }
+	</button>
+}
+
+// LinkButtonClass are the classes that make a link look like a button, for the links that download something.
+func LinkButtonClass(p ButtonProps) string {
+	return buttonClass(p)
+}

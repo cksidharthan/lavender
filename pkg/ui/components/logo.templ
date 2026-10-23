@@ -1,0 +1,36 @@
+package components
+
+templ Logo() {
+	<a href="/" class="inline-flex items-center gap-3 text-5xl font-bold tracking-tight text-indigo-950">
+		@logoMark("size-14 text-brand")
+		<span>Lavender</span>
+	</a>
+}
+
+// LogoSmall is the logo for the top of the sidebar. It loads the home page into the content area.
+templ LogoSmall() {
+	<a href="/" { ContentLink("/")... } class="inline-flex items-center gap-2.5 rounded-md text-xl font-bold tracking-tight text-indigo-950">
+		@logoMark("size-8 text-brand")
+		<span>Lavender</span>
+	</a>
+}
+
+templ logoMark(class string) {
+	<svg viewBox="0 0 32 32" fill="none" aria-hidden="true" class={ class }>
+		<rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="currentColor"></rect>
+		<g transform="translate(16 4)">
+			<path d="M0 24V9" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity="0.92"></path>
+			<ellipse cx="-2.852" cy="2.5" rx="4.60" ry="2.15" fill="#fff" opacity="0.55" transform="rotate(-30 -2.852 2.5)"></ellipse>
+			<ellipse cx="2.852" cy="2.5" rx="4.60" ry="2.15" fill="#fff" opacity="0.55" transform="rotate(30 2.852 2.5)"></ellipse>
+			<ellipse cx="-2.592" cy="6.1" rx="4.18" ry="2.15" fill="#fff" opacity="0.64" transform="rotate(-30 -2.592 6.1)"></ellipse>
+			<ellipse cx="2.592" cy="6.1" rx="4.18" ry="2.15" fill="#fff" opacity="0.64" transform="rotate(30 2.592 6.1)"></ellipse>
+			<ellipse cx="-2.331" cy="9.7" rx="3.76" ry="2.15" fill="#fff" opacity="0.73" transform="rotate(-30 -2.331 9.7)"></ellipse>
+			<ellipse cx="2.331" cy="9.7" rx="3.76" ry="2.15" fill="#fff" opacity="0.73" transform="rotate(30 2.331 9.7)"></ellipse>
+			<ellipse cx="-2.071" cy="13.3" rx="3.34" ry="2.15" fill="#fff" opacity="0.82" transform="rotate(-30 -2.071 13.3)"></ellipse>
+			<ellipse cx="2.071" cy="13.3" rx="3.34" ry="2.15" fill="#fff" opacity="0.82" transform="rotate(30 2.071 13.3)"></ellipse>
+			<ellipse cx="-1.810" cy="16.9" rx="2.92" ry="2.15" fill="#fff" opacity="0.91" transform="rotate(-30 -1.810 16.9)"></ellipse>
+			<ellipse cx="1.810" cy="16.9" rx="2.92" ry="2.15" fill="#fff" opacity="0.91" transform="rotate(30 1.810 16.9)"></ellipse>
+			<circle cx="0" cy="1.4" r="1.7" fill="#fff"></circle>
+		</g>
+	</svg>
+}
