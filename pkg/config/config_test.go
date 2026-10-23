@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,11 @@ func TestNew(t *testing.T) {
 			OTELHost:                  "localhost",
 			OTELPort:                  4317,
 			MetricsUploadIntervalSecs: 10,
+
+			FeedWorkers:         2,
+			FeedRefreshInterval: 10 * time.Minute,
+
+			IconCacheDir: "./data/icons",
 
 			PocketBaseDataDir:       "./data/pb_data",
 			PocketBaseAdminDisabled: true,
@@ -50,6 +56,11 @@ func TestNew(t *testing.T) {
 			OTELHost:                  "localhost",
 			OTELPort:                  4317,
 			MetricsUploadIntervalSecs: 10,
+
+			FeedWorkers:         2,
+			FeedRefreshInterval: 10 * time.Minute,
+
+			IconCacheDir: "./data/icons",
 
 			PocketBaseDataDir:       "./data/pb_data",
 			PocketBaseAdminDisabled: true,

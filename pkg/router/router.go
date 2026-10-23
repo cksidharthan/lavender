@@ -8,13 +8,17 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	accountController "github.com/cksidharthan/lavender/pkg/api/v1/account/controller"
 	feedsController "github.com/cksidharthan/lavender/pkg/api/v1/feeds/controller"
 	healthzController "github.com/cksidharthan/lavender/pkg/api/v1/health/controller"
 	"github.com/cksidharthan/lavender/pkg/config"
+	"github.com/cksidharthan/lavender/pkg/iconcache"
+	"github.com/cksidharthan/lavender/pkg/mfa"
 	"github.com/cksidharthan/lavender/pkg/middlewares"
 	"github.com/cksidharthan/lavender/pkg/otel"
 	lavenderPocketbase "github.com/cksidharthan/lavender/pkg/pocketbase"
 	uiHandlers "github.com/cksidharthan/lavender/pkg/ui/handlers"
+	"github.com/cksidharthan/lavender/pkg/worker"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -58,6 +62,15 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 		mainChiRouter.NotFound(pbHandler.ServeHTTP)
 	}
 
+	// the workers fetch the articles of the feeds, they stop with the server.
+	feedWorkers := worker.New(pbApp, logger, appConfig.FeedWorkers, appConfig.FeedRefreshInterval)
+	workersContext, stopWorkers := context.WithCancel(mainAppServerContext)
+	feedWorkers.Start(workersContext)
+	defer func() {
+		stopWorkers()
+		feedWorkers.Wait()
+	}()
+
 	// healthz Controller
 	healthzCtrl, err := healthzController.New(v1RouterGroup, logger, &isShuttingDown, lavenderOTEL.MetricsProvider.Meter("lavender_healthz_metrics"))
 	if err != nil {
@@ -65,11 +78,30 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 	}
 	healthzCtrl.RegisterRoutes()
 
+	iconCache, err := iconcache.New(appConfig.IconCacheDir)
+	if err != nil {
+		return fmt.Errorf("error creating the icon cache: %w", err)
+	}
+
+	key, err := mfa.LoadKey(appConfig.SecretKey, appConfig.PocketBaseDataDir)
+	if err != nil {
+		return fmt.Errorf("error loading the secret key: %w", err)
+	}
+	mfaService := mfa.New(pbApp, key)
+
+	// the settings of the user, and the export and import of everything of the user
+	accountController.New(v1RouterGroup, logger, pbApp, uiHandlers.AuthCookieName, iconCache, mfaService).RegisterRoutes()
+
 	// folders and feeds, used by the ui
-	feedsController.New(v1RouterGroup, logger, pbApp, uiHandlers.AuthCookieName).RegisterRoutes()
+	feedsController.New(v1RouterGroup, logger, pbApp, uiHandlers.AuthCookieName, feedWorkers).RegisterRoutes()
 
 	// ui (templ + htmx) pages
-	uiHandlers.NewAuthHandler(mainChiRouter, logger, pbApp).RegisterRoutes()
+	uiHandlers.NewAuthHandler(mainChiRouter, logger, pbApp, uiHandlers.Options{
+		Icons:          iconCache,
+		MFA:            mfaService,
+		DefaultRefresh: appConfig.FeedRefreshInterval,
+		DataDir:        appConfig.PocketBaseDataDir,
+	}).RegisterRoutes()
 
 	// mounts all v1 router groups onto /api routergroup
 	apiRouterGroup.Mount("/v1", v1RouterGroup)

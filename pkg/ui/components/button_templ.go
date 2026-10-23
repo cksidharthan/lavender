@@ -126,4 +126,9 @@ func Button(p ButtonProps) templ.Component {
 	})
 }
 
+// LinkButtonClass are the classes that make a link look like a button, for the links that download something.
+func LinkButtonClass(p ButtonProps) string {
+	return buttonClass(p)
+}
+
 var _ = templruntime.GeneratedTemplate

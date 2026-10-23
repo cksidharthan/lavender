@@ -47,3 +47,8 @@ templ Button(p ButtonProps) {
 		{ children... }
 	</button>
 }
+
+// LinkButtonClass are the classes that make a link look like a button, for the links that download something.
+func LinkButtonClass(p ButtonProps) string {
+	return buttonClass(p)
+}

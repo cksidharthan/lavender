@@ -2,16 +2,141 @@ package pages
 
 import "github.com/cksidharthan/lavender/pkg/ui/components"
 
-templ Feed(f components.Feed) {
-	<div class="max-w-2xl">
-		<h1 class={ components.TitleClass }>{ f.Title }</h1>
-		<p class={ components.SubtitleClass }>No articles yet.</p>
+templ Feed(f components.Feed, page ArticlePage) {
+	<div>
+		<div class="flex items-center justify-between gap-4">
+			<h1 class={ components.TitleClass + " flex min-w-0 items-center gap-3" }>
+				@components.FeedIcon(f.IconURL, f.Title, "size-7")
+				<span class="truncate">{ f.Title }</span>
+			</h1>
+			@components.Button(components.ButtonProps{Variant: components.ButtonSecondary, Attrs: templ.Attributes{
+				"hx-post":              "/api/v1/feeds/refresh",
+				"hx-vals":              components.IDVals(f.ID),
+				"hx-swap":              "none",
+				"hx-disabled-elt":      "this",
+				"hx-on::after-request": "reloadFeedPage()",
+			}}) {
+				@components.IconRefresh()
+				Refresh
+			}
+		</div>
+		if len(page.Items) == 0 {
+			<p class={ components.SubtitleClass }>No articles yet. They are fetched in the background, check again in a moment.</p>
+		} else {
+			<ul class="mt-4 flex flex-col gap-3">
+				@ArticleItems(page)
+			</ul>
+		}
 	</div>
 }
 
-templ FeedSettings(f components.Feed) {
-	<div class="max-w-md">
-		<h1 class={ components.TitleClass }>{ f.Title } settings</h1>
-		<p class={ components.SubtitleClass }>Settings for this feed.</p>
-	</div>
+// ArticleItems are the list items of a page of articles, followed by a button for the next page. The button
+// replaces itself with the next page, so the list grows in place.
+templ ArticleItems(page ArticlePage) {
+	for _, a := range page.Items {
+		<li class="group relative flex items-center gap-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm max-sm:gap-3 max-sm:p-3.5">
+			<div class="min-w-0 flex-1">
+				<h2 class="flex items-start gap-2.5 text-base leading-snug font-semibold tracking-tight text-slate-900">
+					@components.FeedIcon(a.FeedIcon, a.FeedName, "mt-px size-5")
+					<button type="button" { articleAttrs(a)... } class="cursor-pointer text-left after:absolute after:inset-0 after:content-[''] hover:text-brand focus-visible:text-brand focus-visible:outline-none">{ a.Title }</button>
+				</h2>
+				<div class="mt-1 flex items-center justify-between gap-2 pl-[1.875rem]">
+					<p class="min-w-0 truncate text-xs text-slate-500">
+						for i, part := range metaParts(page, a) {
+							if i > 0 {
+								<span aria-hidden="true" class="px-1">·</span>
+							}
+							{ part }
+						}
+					</p>
+					<div class="-my-1.5 flex shrink-0 items-center gap-0.5">
+						@SaveButton(a.ID, SaveFavourite, a.Favourite, false, false)
+						@SaveButton(a.ID, SaveReadLater, a.ReadLater, false, false)
+					</div>
+				</div>
+				if a.Summary != "" {
+					<p class="mt-2 line-clamp-3 pl-[1.875rem] text-sm leading-relaxed text-slate-600">{ a.Summary }</p>
+				}
+			</div>
+			if a.Image != "" {
+				<img src={ a.Image } alt="" loading="lazy" referrerpolicy="no-referrer" class="size-24 shrink-0 rounded-lg bg-slate-100 object-cover sm:h-24 sm:w-36 max-sm:size-16"/>
+			}
+		</li>
+	}
+	if page.HasMore {
+		<li class="pt-2 text-center">
+			@components.Button(components.ButtonProps{Variant: components.ButtonSecondary, Attrs: templ.Attributes{"hx-get": page.MoreURL, "hx-target": "closest li", "hx-swap": "outerHTML"}}) {
+				Load more
+			}
+		</li>
+	}
+}
+
+// SaveButton toggles how the user saved an article: as a favourite or to read later. On the card of an article it is an
+// icon that shows on hover, in the panel it has a label. oob makes it replace the button with the same id on the page,
+// which is how the answer to a click keeps the card and the panel of an article in step.
+templ SaveButton(articleID, kind string, active, panel, oob bool) {
+	<button type="button" { saveButtonAttrs(articleID, kind, active, panel, oob)... } class={ saveButtonClass(kind, active, panel) }>
+		<svg class="size-4" viewBox="0 0 24 24" fill={ saveFill(active) } stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={ savePath(kind) }></path></svg>
+		if panel {
+			{ saveButtonLabel(kind, active) }
+		}
+	</button>
+}
+
+// Article is the content of the article panel: the picture on top like a blog post, then the title and the text.
+templ Article(a ArticleDetail) {
+	<article class="pb-16">
+		<div class="mx-auto max-w-4xl px-6 pt-16 sm:px-10">
+			if a.Video != "" {
+				<div class="video mb-8">
+					<iframe
+						src={ a.Video }
+						title="YouTube video player"
+						loading="lazy"
+						allowfullscreen
+						allow="encrypted-media; picture-in-picture; fullscreen"
+						referrerpolicy="strict-origin-when-cross-origin"
+						sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+					></iframe>
+				</div>
+			} else if a.Image != "" {
+				<img src={ a.Image } alt="" referrerpolicy="no-referrer" class="mb-8 max-h-[32rem] w-full rounded-2xl bg-slate-100 object-contain"/>
+			}
+			if a.FeedName != "" {
+				<p class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-brand uppercase">
+					@components.FeedIcon(a.FeedIcon, a.FeedName, "size-5")
+					{ a.FeedName }
+				</p>
+			}
+			<h1 class="text-3xl leading-tight font-bold tracking-tight text-balance text-slate-900">{ a.Title }</h1>
+			if a.Author != "" || a.Date != "" {
+				<p class="mt-3 text-sm text-slate-500">
+					if a.Author != "" {
+						<span class="font-medium text-slate-700">{ a.Author }</span>
+					}
+					if a.Author != "" && a.Date != "" {
+						<span aria-hidden="true" class="px-1.5">·</span>
+					}
+					{ a.Date }
+				</p>
+			}
+			<div class="mt-5 flex flex-wrap items-center gap-2">
+				@SaveButton(a.ID, SaveFavourite, a.Favourite, true, false)
+				@SaveButton(a.ID, SaveReadLater, a.ReadLater, true, false)
+				if a.URL != "" {
+					<a href={ templ.SafeURL(a.URL) } target="_blank" rel="noopener noreferrer" class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-300 hover:bg-slate-50">
+						Open original
+						<svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"></path></svg>
+					</a>
+				}
+			</div>
+			if a.HTML != "" {
+				<hr class="my-8 border-slate-100"/>
+				<div class="article-body">
+					@templ.Raw(a.HTML)
+				</div>
+			}
+		</div>
+	</article>
 }

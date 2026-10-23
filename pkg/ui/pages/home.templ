@@ -2,9 +2,17 @@ package pages
 
 import "github.com/cksidharthan/lavender/pkg/ui/components"
 
-templ Home(email string) {
-	<div class="max-w-sm">
-		<h1 class={ components.TitleClass }>Welcome 👋</h1>
-		<p class={ components.SubtitleClass }>Signed in as { email }</p>
+// List is a page with a list of articles of all the feeds, like the home page.
+templ List(title, intro, empty string, page ArticlePage) {
+	<div>
+		<h1 class={ components.TitleClass }>{ title }</h1>
+		if len(page.Items) == 0 {
+			<p class={ components.SubtitleClass }>{ empty }</p>
+		} else {
+			<p class="mt-1 text-sm text-slate-500">{ intro }</p>
+			<ul class="mt-4 flex flex-col gap-3">
+				@ArticleItems(page)
+			</ul>
+		}
 	</div>
 }

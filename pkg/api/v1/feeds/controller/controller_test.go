@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +21,29 @@ import (
 
 const cookieName = "test_auth"
 
+type fakeQueue struct{ ids []string }
+
+// Done is closed already, the fake queue has no workers.
+func (q *fakeQueue) Done(string) <-chan struct{} {
+	done := make(chan struct{})
+	close(done)
+
+	return done
+}
+
+func (q *fakeQueue) Enqueue(id string) bool {
+	for _, queued := range q.ids {
+		if queued == id {
+			return false
+		}
+	}
+	q.ids = append(q.ids, id)
+
+	return true
+}
+
 type env struct {
+	queue  *fakeQueue
 	t      *testing.T
 	router chi.Router
 	store  *store.Store
@@ -48,17 +71,18 @@ func newEnv(t *testing.T) *env {
 		users[name] = u
 	}
 
-	c := New(chi.NewRouter(), slog.New(slog.DiscardHandler), app, cookieName)
-	c.fetch = func(_ context.Context, rawURL string) (feedfetch.Meta, error) {
+	queue := &fakeQueue{}
+	c := New(chi.NewRouter(), slog.New(slog.DiscardHandler), app, cookieName, queue)
+	c.fetch = func(_ context.Context, rawURL string) (feedfetch.Result, error) {
 		if strings.Contains(rawURL, "broken") {
-			return feedfetch.Meta{}, feedfetch.ErrNotAFeed
+			return feedfetch.Result{}, feedfetch.ErrNotAFeed
 		}
 
-		return feedfetch.Meta{Title: "Go Blog", Type: "atom"}, nil
+		return feedfetch.Result{Meta: feedfetch.Meta{Title: "Go Blog", Type: "atom"}}, nil
 	}
 	c.RegisterRoutes()
 
-	return &env{t: t, router: c.chiRouter, store: c.store, users: users}
+	return &env{queue: queue, t: t, router: c.chiRouter, store: c.store, users: users}
 }
 
 func (e *env) post(user, path string, form url.Values) *httptest.ResponseRecorder {
@@ -109,12 +133,15 @@ func TestFolderAndFeedFlow(t *testing.T) {
 	folderID := tree[0].ID
 
 	rec = e.post("alice", "/feeds", url.Values{"url": {"https://go.dev/blog/feed.atom"}, "folder": {folderID}})
-	require.Contains(t, rec.Body.String(), "Feed added.")
+	require.Contains(t, rec.Body.String(), "Feed added")
 	require.Contains(t, rec.Body.String(), "Go Blog")
+	require.Len(t, e.queue.ids, 1, "the new feed is queued for the workers")
 
+	queued := len(e.queue.ids)
 	rec = e.post("alice", "/feeds", url.Values{"url": {"https://broken.example.com/feed"}})
 	require.Contains(t, rec.Body.String(), "Could not add the feed")
 	require.NotContains(t, rec.Body.String(), `hx-swap-oob="outerHTML"`)
+	require.Len(t, e.queue.ids, queued, "a feed that failed is not queued")
 
 	rec = e.post("alice", "/feeds", url.Values{"url": {"nope"}})
 	require.Contains(t, rec.Body.String(), "Could not add the feed")
@@ -138,8 +165,25 @@ func TestFolderAndFeedFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, bobTree)
 
+	require.Equal(t, []string{feedID}, e.queue.ids)
+	e.queue.ids = nil
 	rec = e.post("alice", "/feeds/refresh", url.Values{"id": {feedID}})
 	require.Contains(t, rec.Body.String(), "Feed refreshed.")
+	require.Equal(t, []string{feedID}, e.queue.ids)
+
+	// a failed fetch is reported with its reason
+	require.NoError(t, e.store.SaveFetchError(feedID, errors.New("boom")))
+	rec = e.post("alice", "/feeds/refresh", url.Values{"id": {feedID}})
+	require.Contains(t, rec.Body.String(), "boom")
+	_, err = e.store.SaveFetch(feedID, feedfetch.Result{})
+	require.NoError(t, err)
+
+	e.queue.ids = nil
+	rec = e.post("alice", "/feeds/refresh-all", nil)
+	require.Contains(t, rec.Body.String(), "Feed refreshed.")
+	require.Equal(t, []string{feedID}, e.queue.ids)
+	rec = e.post("bob", "/feeds/refresh-all", nil)
+	require.Contains(t, rec.Body.String(), "no feeds to refresh")
 
 	rec = e.post("alice", "/feeds/rename", url.Values{"id": {feedID}, "name": {"The Go Blog"}})
 	require.Contains(t, rec.Body.String(), "The Go Blog")
@@ -150,6 +194,68 @@ func TestFolderAndFeedFlow(t *testing.T) {
 	rec = e.post("alice", "/folders/delete", url.Values{"id": {folderID}})
 	require.Contains(t, rec.Body.String(), "Folder deleted.")
 	require.Contains(t, rec.Body.String(), "The Go Blog", "the feed stays")
+
+	// saving an article, as a favourite and to read later
+	_, err = e.store.SaveFetch(feedID, feedfetch.Result{Meta: feedfetch.Meta{Type: "rss"}, Items: []feedfetch.Item{{GUID: "g1", Title: "An article"}}})
+	require.NoError(t, err)
+	articles, _, err := e.store.Articles(alice, feedID, 10, 0)
+	require.NoError(t, err)
+	articleID := articles[0].ID
+
+	rec = e.post("alice", "/articles/favourite", url.Values{"id": {articleID}})
+	body := rec.Body.String()
+	require.Contains(t, body, `id="save-favourite-`+articleID+`"`, "the button of the card")
+	require.Contains(t, body, `id="panel-save-favourite-`+articleID+`"`, "the button of the panel")
+	require.Contains(t, body, `hx-swap-oob="outerHTML"`)
+	require.Contains(t, body, `aria-pressed="true"`)
+	require.Contains(t, body, "Added to favourites.")
+
+	rec = e.post("alice", "/articles/read-later", url.Values{"id": {articleID}})
+	require.Contains(t, rec.Body.String(), "Added to read later.")
+	state, err := e.store.SavedState(alice, []string{articleID})
+	require.NoError(t, err)
+	require.Equal(t, store.SavedFlags{Favourite: true, ReadLater: true}, state[articleID])
+
+	rec = e.post("alice", "/articles/favourite", url.Values{"id": {articleID}})
+	require.Contains(t, rec.Body.String(), `aria-pressed="false"`)
+	require.Contains(t, rec.Body.String(), "Removed from favourites.")
+
+	rec = e.post("bob", "/articles/favourite", url.Values{"id": {articleID}})
+	require.Contains(t, rec.Body.String(), "no longer exists")
+	rec = e.post("", "/articles/favourite", url.Values{"id": {articleID}})
+	require.Equal(t, "/login", rec.Header().Get("HX-Redirect"))
+
+	// the stored posts of a feed can be deleted, the feed stays
+	rec = e.post("bob", "/feeds/clear", url.Values{"id": {feedID}})
+	require.Contains(t, rec.Body.String(), "no longer exists")
+	rec = e.post("alice", "/feeds/clear", url.Values{"id": {feedID}})
+	require.Contains(t, rec.Body.String(), "Deleted 1 stored post.")
+	require.Equal(t, "reload-feed-page", rec.Header().Get("HX-Trigger"))
+	rec = e.post("alice", "/feeds/clear", url.Values{"id": {feedID}})
+	require.Contains(t, rec.Body.String(), "There were no stored posts.")
+	_, err = e.store.FindFeed(alice, feedID)
+	require.NoError(t, err)
+
+	// the settings of a feed
+	rec = e.post("alice", "/feeds/settings", url.Values{"id": {feedID}, "refresh_minutes": {"30"}, "hide_from_home": {"on"}, "icon_override": {"https://cdn.example.com/i.png"}})
+	require.Contains(t, rec.Body.String(), "Settings saved.")
+	require.Equal(t, "reload-feed-page", rec.Header().Get("HX-Trigger"))
+	require.Contains(t, rec.Body.String(), `hx-swap-oob="outerHTML"`)
+	require.Contains(t, rec.Body.String(), `&#34;refresh_minutes&#34;:&#34;30&#34;`, "the dialog of the feed has its new settings")
+	found, err := e.store.FindFeed(alice, feedID)
+	require.NoError(t, err)
+	require.Equal(t, store.FeedSettings{RefreshMinutes: 30, HideFromHome: true, IconOverride: "https://cdn.example.com/i.png", Paused: true}, found.Settings, "no auto_refresh in the form means paused")
+
+	for _, bad := range []url.Values{
+		{"id": {feedID}, "refresh_minutes": {"2"}, "auto_refresh": {"on"}},
+		{"id": {feedID}, "refresh_minutes": {"abc"}, "auto_refresh": {"on"}},
+		{"id": {feedID}, "icon_override": {"javascript:alert(1)"}, "auto_refresh": {"on"}},
+	} {
+		rec = e.post("alice", "/feeds/settings", bad)
+		require.Contains(t, rec.Body.String(), "Could not save the settings")
+	}
+	rec = e.post("bob", "/feeds/settings", url.Values{"id": {feedID}, "auto_refresh": {"on"}})
+	require.Contains(t, rec.Body.String(), "no longer exists")
 
 	// deleting the feed that is open sends the user home
 	req := httptest.NewRequest(http.MethodPost, "/feeds/delete", strings.NewReader(url.Values{"id": {feedID}}.Encode()))

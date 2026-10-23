@@ -1,0 +1,29 @@
+package pages
+
+import (
+	"github.com/cksidharthan/lavender/pkg/ui/components"
+	"github.com/cksidharthan/lavender/pkg/ui/layouts"
+)
+
+// Login2FA is the second step of signing in: the code of the authenticator app.
+templ Login2FA() {
+	@layouts.Auth("Two-step verification") {
+		<h1 class={ components.TitleClass }>Two-step verification</h1>
+		<p class={ components.SubtitleClass }>Enter the 6-digit code of your authenticator app.</p>
+		<form hx-disabled-elt="find button[type=submit]" hx-post="/login/2fa" hx-swap="none">
+			<div class="mb-4">
+				<label for="code" class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Code</label>
+				<input id="code" name="code" type="text" inputmode="text" autocomplete="one-time-code" autofocus required placeholder="123456" class={ components.InputClass() + " font-mono tracking-widest" }/>
+				<p class="mt-1.5 text-xs text-slate-500">Lost your phone? Enter one of your recovery codes instead.</p>
+			</div>
+			@components.Button(components.ButtonProps{Type: "submit", FullWidth: true}) {
+				Verify
+			}
+		</form>
+		<p class="mt-5 text-center text-slate-700 sm:text-sm">
+			@components.Link(components.LinkProps{Href: "/login"}) {
+				← Back to login
+			}
+		</p>
+	}
+}

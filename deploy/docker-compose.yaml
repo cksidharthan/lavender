@@ -18,6 +18,7 @@ services:
       OTEL_PORT: "4317"
       METRICS_UPLOAD_INTERVAL_SECS: "10"
       POCKETBASE_DATA_DIR: /data/pb_data
+      ICON_CACHE_DIR: /data/icons
     ports:
       - "8080:8080"
     volumes:

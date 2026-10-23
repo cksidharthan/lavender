@@ -1,0 +1,127 @@
+package pages
+
+import (
+	"net/url"
+
+	"github.com/cksidharthan/lavender/pkg/ui/components"
+)
+
+// TwoFactor is the card of two factor authentication. It replaces itself with the answers of the requests it makes, so
+// it is the same templ on the page and in the answers.
+templ TwoFactor(s TwoFactorState) {
+	<section id="twofa" class={ cardClass + " mt-4 p-5" } aria-labelledby="twofa-title">
+		<div class="flex items-center justify-between gap-3">
+			<h2 id="twofa-title" class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Two-factor authentication</h2>
+			if s.Enabled {
+				<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">On</span>
+			} else {
+				<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Off</span>
+			}
+		</div>
+		if len(s.Codes) > 0 {
+			@recoveryCodes(s)
+		} else if s.Setup != nil {
+			@twoFactorSetup(*s.Setup)
+		} else if s.Enabled {
+			@twoFactorOn(s)
+		} else {
+			@twoFactorOff()
+		}
+	</section>
+}
+
+templ twoFactorOff() {
+	<p class="mt-3 text-sm text-slate-500">Ask for a code of an authenticator app, like 1Password, Aegis or Google Authenticator, after the password. Someone who has your password still can not sign in.</p>
+	<div class="mt-4">
+		@components.Button(components.ButtonProps{Attrs: templ.Attributes{"hx-post": "/api/v1/account/2fa/setup", "hx-target": "#twofa", "hx-swap": "outerHTML", "hx-disabled-elt": "this"}}) {
+			Set up
+		}
+	</div>
+}
+
+templ twoFactorSetup(s TwoFactorSetup) {
+	<ol class="mt-3 grid gap-6 md:grid-cols-2">
+		<li>
+			<p class="text-sm font-medium text-slate-900"><span class="mr-1 text-brand">1.</span> Scan this with your authenticator app</p>
+			<img src={ templ.SafeURL(s.QR) } alt="QR code to add Lavender to an authenticator app" width="240" height="240" class="mt-3 size-48 rounded-lg border border-slate-200 bg-white p-2"/>
+			<p class="mt-3 text-xs text-slate-500">Or type this key in the app:</p>
+			<p class="mt-1 font-mono text-sm tracking-wider break-all text-slate-800 select-all">{ s.Secret }</p>
+		</li>
+		<li>
+			<p class="text-sm font-medium text-slate-900"><span class="mr-1 text-brand">2.</span> Enter the 6-digit code it shows</p>
+			<form hx-post="/api/v1/account/2fa/enable" hx-target="#twofa" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]" class="mt-3">
+				<label for="twofa-code" class="sr-only">Code of the app</label>
+				<input id="twofa-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required placeholder="123456" class={ components.InputClass() + " font-mono tracking-[0.3em]" }/>
+				<div class="mt-4 flex gap-3">
+					@components.Button(components.ButtonProps{Type: "submit"}) {
+						Turn on
+					}
+					@components.Button(components.ButtonProps{Variant: components.ButtonSecondary, Attrs: templ.Attributes{"hx-post": "/api/v1/account/2fa/cancel", "hx-target": "#twofa", "hx-swap": "outerHTML"}}) {
+						Cancel
+					}
+				</div>
+			</form>
+		</li>
+	</ol>
+}
+
+templ recoveryCodes(s TwoFactorState) {
+	<div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+		<p class="font-semibold">Save your recovery codes</p>
+		<p class="mt-1">If you lose your phone, each of these signs you in once, instead of the code of the app. They are shown now and never again.</p>
+	</div>
+	<ul class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Recovery codes">
+		for _, c := range s.Codes {
+			<li class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center font-mono text-sm text-slate-800 select-all">{ c }</li>
+		}
+	</ul>
+	<div class="mt-4 flex flex-wrap gap-3">
+		<button type="button" data-copy={ recoveryFile(s.Codes) } onclick="navigator.clipboard.writeText(this.dataset.copy.split('\n').filter(function (l) { return /^[a-z0-9]{5}-[a-z0-9]{5}$/.test(l); }).join('\n')).then(() => { this.textContent = 'Copied' })" class={ components.LinkButtonClass(components.ButtonProps{Variant: components.ButtonSecondary}) }>
+			Copy
+		</button>
+		<a href={ templ.SafeURL("data:text/plain;charset=utf-8," + url.PathEscape(recoveryFile(s.Codes))) } download="lavender-recovery-codes.txt" class={ components.LinkButtonClass(components.ButtonProps{Variant: components.ButtonSecondary}) }>
+			Download
+		</a>
+		@components.Button(components.ButtonProps{Attrs: templ.Attributes{"hx-get": "/api/v1/account/2fa", "hx-target": "#twofa", "hx-swap": "outerHTML"}}) {
+			I saved them
+		}
+	</div>
+}
+
+templ twoFactorOn(s TwoFactorState) {
+	<p class="mt-3 text-sm text-slate-500">
+		Signing in asks for a code of your authenticator app after the password.
+		<span class={ recoveryClass(s.RecoveryLeft) }>{ recoveryText(s.RecoveryLeft) }.</span>
+	</p>
+	<div class="mt-4 grid gap-3 md:grid-cols-2">
+		<details class="rounded-xl border border-slate-200 bg-white p-4">
+			<summary class="cursor-pointer text-sm font-medium text-slate-900 select-none">Make new recovery codes</summary>
+			<form hx-post="/api/v1/account/2fa/recovery" hx-target="#twofa" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]" class="mt-4">
+				<p class="mb-3 text-sm text-slate-500">The ones you have stop working.</p>
+				@twoFactorProof("recovery")
+				@components.Button(components.ButtonProps{Type: "submit", Variant: components.ButtonSecondary}) {
+					Make new codes
+				}
+			</form>
+		</details>
+		<details class="rounded-xl border border-slate-200 bg-white p-4">
+			<summary class="cursor-pointer text-sm font-medium text-red-600 select-none">Turn off</summary>
+			<form hx-post="/api/v1/account/2fa/disable" hx-target="#twofa" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]" class="mt-4">
+				<p class="mb-3 text-sm text-slate-500">Signing in needs the password only again.</p>
+				@twoFactorProof("disable")
+				@components.Button(components.ButtonProps{Type: "submit", Variant: components.ButtonDanger}) {
+					Turn off two-factor authentication
+				}
+			</form>
+		</details>
+	</div>
+}
+
+// twoFactorProof are the fields of what only the owner can do: the password and a code.
+templ twoFactorProof(prefix string) {
+	@components.PasswordField(components.FieldProps{ID: prefix + "-password", Name: "current_password", Label: "Password", Placeholder: "Your password", Autocomplete: "current-password", Required: true})
+	<div class="mb-4">
+		<label for={ prefix + "-code" } class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Code of the app, or a recovery code</label>
+		<input id={ prefix + "-code" } name="code" type="text" autocomplete="one-time-code" required placeholder="123456" class={ components.InputClass() + " font-mono" }/>
+	</div>
+}

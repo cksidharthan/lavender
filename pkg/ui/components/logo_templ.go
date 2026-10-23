@@ -29,7 +29,108 @@ func Logo() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<a href=\"/\" class=\"inline-flex items-center gap-3 text-5xl font-bold tracking-tight text-indigo-950\"><svg viewBox=\"0 0 32 32\" fill=\"none\" aria-hidden=\"true\" class=\"size-14 text-brand\"><rect x=\"0.5\" y=\"0.5\" width=\"31\" height=\"31\" rx=\"9\" fill=\"currentColor\"></rect> <g transform=\"translate(16 4)\"><path d=\"M0 24V9\" stroke=\"#fff\" stroke-width=\"1.6\" stroke-linecap=\"round\" opacity=\"0.92\"></path> <ellipse cx=\"-2.852\" cy=\"2.5\" rx=\"4.60\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.55\" transform=\"rotate(-30 -2.852 2.5)\"></ellipse> <ellipse cx=\"2.852\" cy=\"2.5\" rx=\"4.60\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.55\" transform=\"rotate(30 2.852 2.5)\"></ellipse> <ellipse cx=\"-2.592\" cy=\"6.1\" rx=\"4.18\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.64\" transform=\"rotate(-30 -2.592 6.1)\"></ellipse> <ellipse cx=\"2.592\" cy=\"6.1\" rx=\"4.18\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.64\" transform=\"rotate(30 2.592 6.1)\"></ellipse> <ellipse cx=\"-2.331\" cy=\"9.7\" rx=\"3.76\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.73\" transform=\"rotate(-30 -2.331 9.7)\"></ellipse> <ellipse cx=\"2.331\" cy=\"9.7\" rx=\"3.76\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.73\" transform=\"rotate(30 2.331 9.7)\"></ellipse> <ellipse cx=\"-2.071\" cy=\"13.3\" rx=\"3.34\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.82\" transform=\"rotate(-30 -2.071 13.3)\"></ellipse> <ellipse cx=\"2.071\" cy=\"13.3\" rx=\"3.34\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.82\" transform=\"rotate(30 2.071 13.3)\"></ellipse> <ellipse cx=\"-1.810\" cy=\"16.9\" rx=\"2.92\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.91\" transform=\"rotate(-30 -1.810 16.9)\"></ellipse> <ellipse cx=\"1.810\" cy=\"16.9\" rx=\"2.92\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.91\" transform=\"rotate(30 1.810 16.9)\"></ellipse> <circle cx=\"0\" cy=\"1.4\" r=\"1.7\" fill=\"#fff\"></circle></g></svg> <span>Lavender</span></a>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<a href=\"/\" class=\"inline-flex items-center gap-3 text-5xl font-bold tracking-tight text-indigo-950\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = logoMark("size-14 text-brand").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<span>Lavender</span></a>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// LogoSmall is the logo for the top of the sidebar. It loads the home page into the content area.
+func LogoSmall() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<a href=\"/\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, ContentLink("/"))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " class=\"inline-flex items-center gap-2.5 rounded-md text-xl font-bold tracking-tight text-indigo-950\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = logoMark("size-8 text-brand").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span>Lavender</span></a>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func logoMark(class string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		var templ_7745c5c3_Var4 = []any{class}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<svg viewBox=\"0 0 32 32\" fill=\"none\" aria-hidden=\"true\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var4).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/ui/components/logo.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"><rect x=\"0.5\" y=\"0.5\" width=\"31\" height=\"31\" rx=\"9\" fill=\"currentColor\"></rect> <g transform=\"translate(16 4)\"><path d=\"M0 24V9\" stroke=\"#fff\" stroke-width=\"1.6\" stroke-linecap=\"round\" opacity=\"0.92\"></path> <ellipse cx=\"-2.852\" cy=\"2.5\" rx=\"4.60\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.55\" transform=\"rotate(-30 -2.852 2.5)\"></ellipse> <ellipse cx=\"2.852\" cy=\"2.5\" rx=\"4.60\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.55\" transform=\"rotate(30 2.852 2.5)\"></ellipse> <ellipse cx=\"-2.592\" cy=\"6.1\" rx=\"4.18\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.64\" transform=\"rotate(-30 -2.592 6.1)\"></ellipse> <ellipse cx=\"2.592\" cy=\"6.1\" rx=\"4.18\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.64\" transform=\"rotate(30 2.592 6.1)\"></ellipse> <ellipse cx=\"-2.331\" cy=\"9.7\" rx=\"3.76\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.73\" transform=\"rotate(-30 -2.331 9.7)\"></ellipse> <ellipse cx=\"2.331\" cy=\"9.7\" rx=\"3.76\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.73\" transform=\"rotate(30 2.331 9.7)\"></ellipse> <ellipse cx=\"-2.071\" cy=\"13.3\" rx=\"3.34\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.82\" transform=\"rotate(-30 -2.071 13.3)\"></ellipse> <ellipse cx=\"2.071\" cy=\"13.3\" rx=\"3.34\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.82\" transform=\"rotate(30 2.071 13.3)\"></ellipse> <ellipse cx=\"-1.810\" cy=\"16.9\" rx=\"2.92\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.91\" transform=\"rotate(-30 -1.810 16.9)\"></ellipse> <ellipse cx=\"1.810\" cy=\"16.9\" rx=\"2.92\" ry=\"2.15\" fill=\"#fff\" opacity=\"0.91\" transform=\"rotate(30 1.810 16.9)\"></ellipse> <circle cx=\"0\" cy=\"1.4\" r=\"1.7\" fill=\"#fff\"></circle></g></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

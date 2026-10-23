@@ -5,15 +5,20 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cksidharthan/lavender/pkg/feedfetch"
 	"github.com/cksidharthan/lavender/pkg/middlewares"
+	"github.com/cksidharthan/lavender/pkg/pocketbase/db"
 	"github.com/cksidharthan/lavender/pkg/store"
 	"github.com/cksidharthan/lavender/pkg/ui/components"
+	"github.com/cksidharthan/lavender/pkg/ui/pages"
 	"github.com/cksidharthan/lavender/pkg/ui/view"
 	"github.com/go-chi/chi/v5"
 	"github.com/pocketbase/pocketbase/core"
@@ -24,16 +29,27 @@ const (
 	notFound     = "This item no longer exists."
 )
 
+// Enqueuer queues a feed to have its articles fetched in the background.
+type Enqueuer interface {
+	Enqueue(feedID string) bool
+	// Done is closed when the feed that is queued or being fetched is done.
+	Done(feedID string) <-chan struct{}
+}
+
+// refreshWait is how long a refresh waits for the workers before it answers, the feed is refreshed anyway.
+const refreshWait = 20 * time.Second
+
 type Controller struct {
 	chiRouter  chi.Router
 	logger     *slog.Logger
 	store      *store.Store
 	pbApp      core.App
 	cookieName string
-	fetch      func(ctx context.Context, rawURL string) (feedfetch.Meta, error)
+	fetch      func(ctx context.Context, rawURL string) (feedfetch.Result, error)
+	enqueuer   Enqueuer
 }
 
-func New(chiRouter chi.Router, logger *slog.Logger, pbApp core.App, cookieName string) *Controller {
+func New(chiRouter chi.Router, logger *slog.Logger, pbApp core.App, cookieName string, enqueuer Enqueuer) *Controller {
 	return &Controller{
 		chiRouter:  chiRouter,
 		logger:     logger,
@@ -41,6 +57,7 @@ func New(chiRouter chi.Router, logger *slog.Logger, pbApp core.App, cookieName s
 		pbApp:      pbApp,
 		cookieName: cookieName,
 		fetch:      feedfetch.Fetch,
+		enqueuer:   enqueuer,
 	}
 }
 
@@ -52,9 +69,15 @@ func (c *Controller) RegisterRoutes() {
 		r.Post("/folders/rename", c.renameFolder)
 		r.Post("/folders/delete", c.deleteFolder)
 
+		r.Post("/articles/favourite", c.toggleSaved(pages.SaveFavourite, db.SavedFavourite, "favourites"))
+		r.Post("/articles/read-later", c.toggleSaved(pages.SaveReadLater, db.SavedReadLater, "read later"))
+
 		r.Post("/feeds", c.addFeed)
 		r.Post("/feeds/rename", c.renameFeed)
+		r.Post("/feeds/settings", c.feedSettings)
 		r.Post("/feeds/refresh", c.refreshFeed)
+		r.Post("/feeds/clear", c.clearFeed)
+		r.Post("/feeds/refresh-all", c.refreshAll)
 		r.Post("/feeds/delete", c.deleteFeed)
 	})
 }
@@ -99,7 +122,8 @@ func (c *Controller) addFeed(w http.ResponseWriter, r *http.Request) {
 
 	feedURL := strings.TrimSpace(r.PostFormValue("url"))
 
-	meta, err := c.fetch(r.Context(), feedURL)
+	// the feed is read once here, to be sure the url is a feed and to name it. Its articles are fetched by the workers.
+	result, err := c.fetch(r.Context(), feedURL)
 	if err != nil {
 		c.logger.Info("error fetching feed", slog.String("url", feedURL), slog.Any("error", err))
 		c.toast(w, r, components.ToastError, errorTitle, fetchMessage(err))
@@ -107,8 +131,12 @@ func (c *Controller) addFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = c.store.AddFeed(user.Id, feedURL, r.PostFormValue("folder"), meta)
-	c.done(w, r, user, err, "Feed added.", errorTitle)
+	feed, err := c.store.AddFeed(user.Id, feedURL, r.PostFormValue("folder"), result.Meta)
+	if err == nil {
+		c.enqueuer.Enqueue(feed.ID)
+	}
+
+	c.done(w, r, user, err, "Feed added, its articles are being fetched.", errorTitle)
 }
 
 func (c *Controller) renameFeed(w http.ResponseWriter, r *http.Request) {
@@ -121,11 +149,73 @@ func (c *Controller) renameFeed(w http.ResponseWriter, r *http.Request) {
 	err := c.store.RenameFeed(user.Id, id, r.PostFormValue("name"))
 	if err == nil {
 		reloadIfViewing(w, r, id)
+		w.Header().Set("HX-Trigger", "reload-feed-page")
 	}
 
 	c.done(w, r, user, err, "Feed renamed.", "Could not rename the feed")
 }
 
+// feedSettings saves the settings of a feed: its refresh interval, whether it is on the home page and its icon.
+func (c *Controller) feedSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := c.form(w, r)
+	if !ok {
+		return
+	}
+
+	const errorTitle = "Could not save the settings"
+
+	settings := store.FeedSettings{
+		HideFromHome: r.PostFormValue("hide_from_home") != "",
+		IconOverride: r.PostFormValue("icon_override"),
+		Paused:       r.PostFormValue("auto_refresh") == "",
+	}
+
+	if minutes := strings.TrimSpace(r.PostFormValue("refresh_minutes")); minutes != "" {
+		value, err := strconv.Atoi(minutes)
+		if err != nil {
+			c.fail(w, r, errorTitle, store.InvalidError{Message: "The refresh interval must be a whole number of minutes."})
+			return
+		}
+		settings.RefreshMinutes = value
+	}
+
+	err := c.store.UpdateFeedSettings(user.Id, r.PostFormValue("id"), settings)
+	if err == nil {
+		// the home page and the feed that are open show the settings (hidden feeds, icons), the page reloads them. This
+		// is an event, as the form that sent the request is replaced together with the sidebar.
+		w.Header().Set("HX-Trigger", "reload-feed-page")
+	}
+
+	c.done(w, r, user, err, "Settings saved.", errorTitle)
+}
+
+// clearFeed deletes the stored articles of a feed, the feed stays.
+func (c *Controller) clearFeed(w http.ResponseWriter, r *http.Request) {
+	user, ok := c.form(w, r)
+	if !ok {
+		return
+	}
+
+	deleted, err := c.store.ClearArticles(user.Id, r.PostFormValue("id"))
+	if err != nil {
+		c.fail(w, r, "Could not delete the posts", err)
+		return
+	}
+
+	// the page that is open shows the numbers and the posts of the feed
+	w.Header().Set("HX-Trigger", "reload-feed-page")
+
+	switch deleted {
+	case 0:
+		c.toast(w, r, components.ToastInfo, "", "There were no stored posts.")
+	case 1:
+		c.toast(w, r, components.ToastSuccess, "", "Deleted 1 stored post.")
+	default:
+		c.toast(w, r, components.ToastSuccess, "", fmt.Sprintf("Deleted %d stored posts.", deleted))
+	}
+}
+
+// refreshFeed has the workers fetch the feed and answers when they are done, so the page can show the new articles.
 func (c *Controller) refreshFeed(w http.ResponseWriter, r *http.Request) {
 	user, ok := c.form(w, r)
 	if !ok {
@@ -134,28 +224,85 @@ func (c *Controller) refreshFeed(w http.ResponseWriter, r *http.Request) {
 
 	const errorTitle = "Could not refresh the feed"
 
-	id := r.PostFormValue("id")
-
-	feedURL, err := c.store.FeedURL(user.Id, id)
+	feed, err := c.store.FindFeed(user.Id, r.PostFormValue("id"))
 	if err != nil {
 		c.fail(w, r, errorTitle, err)
 		return
 	}
 
-	meta, err := c.fetch(r.Context(), feedURL)
-	if err != nil {
-		c.logger.Info("error refreshing feed", slog.String("url", feedURL), slog.Any("error", err))
-		c.toast(w, r, components.ToastError, errorTitle, fetchMessage(err))
-
+	c.enqueuer.Enqueue(feed.ID)
+	if !c.wait(r.Context(), feed.ID) {
+		c.toast(w, r, components.ToastInfo, "", "The feed is still being refreshed, its articles will appear shortly.")
 		return
 	}
 
-	if err := c.store.MarkRefreshed(user.Id, id, meta); err != nil {
+	// the workers keep the reason when the fetch failed.
+	feed, err = c.store.FindFeed(user.Id, feed.ID)
+	if err != nil {
 		c.fail(w, r, errorTitle, err)
+		return
+	}
+	if feed.LastError != "" {
+		c.toast(w, r, components.ToastError, errorTitle, feed.LastError)
 		return
 	}
 
 	c.toast(w, r, components.ToastSuccess, "", "Feed refreshed.")
+}
+
+// refreshAll has the workers fetch all the feeds of the user and answers when they are done.
+func (c *Controller) refreshAll(w http.ResponseWriter, r *http.Request) {
+	user, ok := c.form(w, r)
+	if !ok {
+		return
+	}
+
+	const errorTitle = "Could not refresh the feeds"
+
+	ids, err := c.store.FeedIDs(user.Id)
+	if err != nil {
+		c.fail(w, r, errorTitle, err)
+		return
+	}
+	if len(ids) == 0 {
+		c.toast(w, r, components.ToastInfo, "", "There are no feeds to refresh.")
+		return
+	}
+
+	for _, id := range ids {
+		c.enqueuer.Enqueue(id)
+	}
+
+	finished := true
+	for _, id := range ids {
+		finished = c.wait(r.Context(), id) && finished
+	}
+
+	if !finished {
+		c.toast(w, r, components.ToastInfo, "", "The feeds are still being refreshed, their articles will appear shortly.")
+		return
+	}
+
+	message := "Feeds refreshed."
+	if len(ids) == 1 {
+		message = "Feed refreshed."
+	}
+	c.toast(w, r, components.ToastSuccess, "", message)
+}
+
+// wait waits for the workers to be done with the feed, false when it takes too long or the request is gone.
+func (c *Controller) wait(ctx context.Context, feedID string) bool {
+	timer := time.NewTimer(refreshWait)
+	defer timer.Stop()
+
+	select {
+	case <-c.enqueuer.Done(feedID):
+		return true
+	case <-timer.C:
+		return false
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func (c *Controller) deleteFeed(w http.ResponseWriter, r *http.Request) {
@@ -166,12 +313,44 @@ func (c *Controller) deleteFeed(w http.ResponseWriter, r *http.Request) {
 
 	id := r.PostFormValue("id")
 	err := c.store.DeleteFeed(user.Id, id)
-	if err == nil && viewing(r, id) {
-		// the feed that is open no longer exists, go home.
-		w.Header().Set("HX-Redirect", "/")
+	if err == nil {
+		// the page that is open shows the feed, in its lists or its numbers
+		w.Header().Set("HX-Trigger", "reload-feed-page")
+		if viewing(r, id) {
+			// the feed that is open no longer exists, go home.
+			w.Header().Set("HX-Redirect", "/")
+		}
 	}
 
 	c.done(w, r, user, err, "Feed deleted.", "Could not delete the feed")
+}
+
+// toggleSaved saves an article of the user as the kind, or takes it back when it already is. The answer has the buttons
+// of the article, as they are now, to replace the ones on the page: the one on the card and the one in the panel.
+func (c *Controller) toggleSaved(slug, kind, listName string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := c.form(w, r)
+		if !ok {
+			return
+		}
+
+		id := r.PostFormValue("id")
+
+		active, err := c.store.ToggleSaved(user.Id, id, kind)
+		if err != nil {
+			c.fail(w, r, "Could not save the article", err)
+			return
+		}
+
+		_ = pages.SaveButton(id, slug, active, false, true).Render(r.Context(), w)
+		_ = pages.SaveButton(id, slug, active, true, true).Render(r.Context(), w)
+
+		if active {
+			c.toast(w, r, components.ToastSuccess, "", "Added to "+listName+".")
+		} else {
+			c.toast(w, r, components.ToastInfo, "", "Removed from "+listName+".")
+		}
+	}
 }
 
 // form returns the user and parses the form. The error is already answered when ok is false.
