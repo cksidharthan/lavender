@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cksidharthan/lavender/pkg/buildinfo"
 	"github.com/cksidharthan/lavender/pkg/config"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
@@ -33,19 +34,25 @@ func New(cfg *config.Config) *slog.Logger {
 		otelslog.WithLoggerProvider(otel.GetLoggerProvider()),
 	)
 
+	// what identifies the build on every line of stdout. The otel handler has it as resource attributes.
 	jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: level,
+	}).WithAttrs([]slog.Attr{
+		slog.String("service", cfg.OTELServiceName),
+		slog.String("environment", cfg.Environment),
+		slog.String("version", buildinfo.Version),
+		slog.String("revision", buildinfo.Revision()),
 	})
 
-	logger := slog.New(
-		slog.NewMultiHandler(
-			otelHandler,
-			jsonHandler,
-		),
-	)
+	// the context attributes (request id, user) go to both, the trace ids are added to stdout only as the otel
+	// handler sets them itself
+	logger := slog.New(ctxHandler{Handler: slog.NewMultiHandler(
+		otelHandler,
+		traceHandler{Handler: jsonHandler},
+	)})
 	slog.SetDefault(logger)
 
-	logger.Info("logger initialized", slog.String("level", cfg.LogLevel), slog.String("environment", cfg.Environment))
+	logger.Info("logger initialized", slog.String("level", cfg.LogLevel))
 
 	return logger
 }

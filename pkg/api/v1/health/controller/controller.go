@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -46,6 +47,7 @@ func (hc *HealthzController) RegisterRoutes() {
 
 func (hc *HealthzController) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	if hc.isShuttingDown.Load() {
+		hc.requestCounterMetric.Add(r.Context(), 1, metric.WithAttributes(attribute.String("status", "unhealthy")))
 		render.Status(r, http.StatusServiceUnavailable)
 		render.JSON(w, r, &HealthzResponse{
 			Status: "unhealthy",
@@ -54,7 +56,7 @@ func (hc *HealthzController) healthzHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	hc.requestCounterMetric.Add(r.Context(), 1)
+	hc.requestCounterMetric.Add(r.Context(), 1, metric.WithAttributes(attribute.String("status", "healthy")))
 	render.Status(r, http.StatusOK)
 	render.JSON(w, r, &HealthzResponse{
 		Status: "healthy",

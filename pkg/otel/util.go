@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const tracerName = "taalmaat"
+const tracerName = "github.com/cksidharthan/lavender"
 
 func GetTraceID(ctx context.Context) string {
 	span := trace.SpanFromContext(ctx)
@@ -83,4 +83,14 @@ func EndSpan(ctx context.Context) {
 	if span.SpanContext().IsValid() {
 		span.End()
 	}
+}
+
+// SetAttributes adds attributes to the span of ctx.
+func SetAttributes(ctx context.Context, attrs ...attribute.KeyValue) {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return
+	}
+
+	span.SetAttributes(attrs...)
 }

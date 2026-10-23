@@ -12,6 +12,8 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/cksidharthan/lavender/pkg/iconcache"
+	lavenderLogger "github.com/cksidharthan/lavender/pkg/logger"
+	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/cksidharthan/lavender/pkg/pocketbase/db"
 	"github.com/cksidharthan/lavender/pkg/store"
 	"github.com/cksidharthan/lavender/pkg/ui/components"
@@ -20,6 +22,7 @@ import (
 	"github.com/cksidharthan/lavender/pkg/ui/view"
 	"github.com/go-chi/chi/v5"
 	"github.com/pocketbase/pocketbase/core"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // articlesPageSize is how many articles a page of a feed shows.
@@ -37,7 +40,7 @@ func (h *AuthHandler) renderApp(w http.ResponseWriter, r *http.Request, user *co
 
 	tree, err := h.store.Tree(user.Id)
 	if err != nil {
-		h.logger.Error("error loading the sidebar", slog.Any("error", err))
+		h.logError(r, "error loading the sidebar", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
@@ -124,7 +127,7 @@ func (h *AuthHandler) listPage(l list) func(w http.ResponseWriter, r *http.Reque
 			// nothing to wait for when there are no feeds
 			feedIDs, err := h.store.FeedIDs(user.Id)
 			if err != nil {
-				h.serverError(w, "error finding feeds", err)
+				h.serverError(w, r, "error finding feeds", err)
 				return
 			}
 			if len(feedIDs) == 0 {
@@ -158,16 +161,19 @@ func (h *AuthHandler) listFragment(w http.ResponseWriter, r *http.Request, user 
 }
 
 // listItems builds a page of a list. The error is already answered when ok is false.
-func (h *AuthHandler) listItems(w http.ResponseWriter, _ *http.Request, user *core.Record, l list, offset int) (pages.ArticlePage, bool) {
+func (h *AuthHandler) listItems(w http.ResponseWriter, r *http.Request, user *core.Record, l list, offset int) (pages.ArticlePage, bool) {
 	articles, hasMore, err := l.fetch(h, user.Id, articlesPageSize, offset)
 	if err != nil {
-		h.serverError(w, "error finding articles", err)
+		h.serverError(w, r, "error finding articles", err)
 		return pages.ArticlePage{}, false
 	}
 
+	lavenderOTEL.RecordListPage(r.Context(), l.name, len(articles))
+	lavenderOTEL.SetAttributes(r.Context(), attribute.String("list.name", l.name), attribute.Int("list.offset", offset), attribute.Int("list.articles", len(articles)))
+
 	saved, err := h.store.SavedState(user.Id, articleIDs(articles))
 	if err != nil {
-		h.serverError(w, "error finding saved articles", err)
+		h.serverError(w, r, "error finding saved articles", err)
 		return pages.ArticlePage{}, false
 	}
 
@@ -192,8 +198,14 @@ func articleIDs(articles []store.FeedArticle) []string {
 	return ids
 }
 
-func (h *AuthHandler) serverError(w http.ResponseWriter, message string, err error) {
-	h.logger.Error(message, slog.Any("error", err))
+// logError logs the error of a request with its trace id, and marks the trace of the request as failed.
+func (h *AuthHandler) logError(r *http.Request, message string, err error) {
+	lavenderOTEL.RecordError(r.Context(), err)
+	h.logger.ErrorContext(r.Context(), message, slog.Any(lavenderLogger.ErrorKey, err))
+}
+
+func (h *AuthHandler) serverError(w http.ResponseWriter, r *http.Request, message string, err error) {
+	h.logError(r, message, err)
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
@@ -206,7 +218,7 @@ func (h *AuthHandler) settingsPage(tab string) func(w http.ResponseWriter, r *ht
 		if tab == pages.TabAccount {
 			enabled, recoveryLeft, err := h.mfa.Status(user.Id)
 			if err != nil {
-				h.serverError(w, "error finding two-factor authentication", err)
+				h.serverError(w, r, "error finding two-factor authentication", err)
 				return
 			}
 
@@ -220,7 +232,7 @@ func (h *AuthHandler) settingsPage(tab string) func(w http.ResponseWriter, r *ht
 
 		stats, err := h.store.Stats(user.Id, h.defaultRefresh)
 		if err != nil {
-			h.serverError(w, "error counting what is stored", err)
+			h.serverError(w, r, "error counting what is stored", err)
 			return
 		}
 
@@ -231,7 +243,7 @@ func (h *AuthHandler) settingsPage(tab string) func(w http.ResponseWriter, r *ht
 
 		icons, iconBytes, err := h.icons.Stats()
 		if err != nil {
-			h.serverError(w, "error counting the icons", err)
+			h.serverError(w, r, "error counting the icons", err)
 			return
 		}
 
@@ -257,7 +269,7 @@ func (h *AuthHandler) feed(w http.ResponseWriter, r *http.Request, user *core.Re
 
 	articles, hasMore, err := h.store.Articles(user.Id, f.ID, articlesPageSize, 0)
 	if err != nil {
-		h.logger.Error("error finding articles", slog.Any("error", err))
+		h.logError(r, "error finding articles", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
@@ -265,9 +277,12 @@ func (h *AuthHandler) feed(w http.ResponseWriter, r *http.Request, user *core.Re
 
 	saved, err := h.store.SavedState(user.Id, storeArticleIDs(articles))
 	if err != nil {
-		h.serverError(w, "error finding saved articles", err)
+		h.serverError(w, r, "error finding saved articles", err)
 		return
 	}
+
+	lavenderOTEL.RecordListPage(r.Context(), "feed", len(articles))
+	lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", f.ID), attribute.Int("list.articles", len(articles)))
 
 	page := view.Articles(f, articles, hasMore, 0, saved)
 
@@ -288,7 +303,7 @@ func (h *AuthHandler) articles(w http.ResponseWriter, r *http.Request, user *cor
 
 	articles, hasMore, err := h.store.Articles(user.Id, f.ID, articlesPageSize, offset)
 	if err != nil {
-		h.logger.Error("error finding articles", slog.Any("error", err))
+		h.logError(r, "error finding articles", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
@@ -296,9 +311,12 @@ func (h *AuthHandler) articles(w http.ResponseWriter, r *http.Request, user *cor
 
 	saved, err := h.store.SavedState(user.Id, storeArticleIDs(articles))
 	if err != nil {
-		h.serverError(w, "error finding saved articles", err)
+		h.serverError(w, r, "error finding saved articles", err)
 		return
 	}
+
+	lavenderOTEL.RecordListPage(r.Context(), "feed", len(articles))
+	lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", f.ID), attribute.Int("list.offset", offset), attribute.Int("list.articles", len(articles)))
 
 	page := view.Articles(f, articles, hasMore, offset, saved)
 
@@ -313,7 +331,7 @@ func (h *AuthHandler) userFeed(w http.ResponseWriter, r *http.Request, user *cor
 		return components.Feed{}, false
 	}
 	if err != nil {
-		h.logger.Error("error finding feed", slog.Any("error", err))
+		h.logError(r, "error finding feed", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return components.Feed{}, false
@@ -335,7 +353,7 @@ func (h *AuthHandler) article(w http.ResponseWriter, r *http.Request, user *core
 		return
 	}
 	if err != nil {
-		h.logger.Error("error finding article", slog.Any("error", err))
+		h.logError(r, "error finding article", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
@@ -343,9 +361,12 @@ func (h *AuthHandler) article(w http.ResponseWriter, r *http.Request, user *core
 
 	saved, err := h.store.SavedState(user.Id, []string{a.ID})
 	if err != nil {
-		h.serverError(w, "error finding saved articles", err)
+		h.serverError(w, r, "error finding saved articles", err)
 		return
 	}
+
+	lavenderOTEL.RecordArticleView(r.Context())
+	lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", f.ID), attribute.String("article.id", a.ID))
 
 	detail := view.Article(a, saved[a.ID])
 	detail.FeedName, detail.FeedIcon = f.Title, f.IconURL
@@ -371,7 +392,7 @@ func (h *AuthHandler) icon(w http.ResponseWriter, r *http.Request) {
 	icon, err := h.icons.GetFirst(r.Context(), f.IconCandidates...)
 	if err != nil {
 		if !errors.Is(err, iconcache.ErrUnavailable) && r.Context().Err() == nil {
-			h.logger.Error("error getting icon", slog.Any("error", err))
+			h.logError(r, "error getting icon", err)
 		}
 
 		h.noIcon(w, r)
