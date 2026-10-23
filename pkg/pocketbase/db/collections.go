@@ -1,5 +1,7 @@
 package db
 
 const (
-	FeedsCollection = "feeds"
+	UsersCollection   = "users"
+	FeedsCollection   = "feeds"
+	FoldersCollection = "folders"
 )

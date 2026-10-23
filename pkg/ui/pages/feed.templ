@@ -1,0 +1,17 @@
+package pages
+
+import "github.com/cksidharthan/lavender/pkg/ui/components"
+
+templ Feed(f components.Feed) {
+	<div class="max-w-2xl">
+		<h1 class={ components.TitleClass }>{ f.Title }</h1>
+		<p class={ components.SubtitleClass }>No articles yet.</p>
+	</div>
+}
+
+templ FeedSettings(f components.Feed) {
+	<div class="max-w-md">
+		<h1 class={ components.TitleClass }>{ f.Title } settings</h1>
+		<p class={ components.SubtitleClass }>Settings for this feed.</p>
+	</div>
+}

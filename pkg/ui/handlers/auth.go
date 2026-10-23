@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/cksidharthan/lavender/pkg/store"
 	"github.com/cksidharthan/lavender/pkg/ui/components"
 	"github.com/cksidharthan/lavender/pkg/ui/pages"
 	"github.com/cksidharthan/lavender/pkg/ui/static"
@@ -18,7 +19,7 @@ import (
 
 const (
 	usersCollection   = "users"
-	authCookieName    = "lavender_auth"
+	AuthCookieName    = "lavender_auth"
 	rememberMeMaxAge  = 30 * 24 * time.Hour
 	minPasswordLength = 8
 
@@ -30,15 +31,19 @@ type AuthHandler struct {
 	chiRouter chi.Router
 	logger    *slog.Logger
 	pbApp     core.App
+	store     *store.Store
 }
 
 func NewAuthHandler(chiRouter chi.Router, logger *slog.Logger, pbApp core.App) *AuthHandler {
-	return &AuthHandler{chiRouter: chiRouter, logger: logger, pbApp: pbApp}
+	return &AuthHandler{chiRouter: chiRouter, logger: logger, pbApp: pbApp, store: store.New(pbApp)}
 }
 
 func (h *AuthHandler) RegisterRoutes() {
 	h.chiRouter.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
-	h.chiRouter.Get("/", h.home)
+	h.chiRouter.Get("/", h.appPage(h.home))
+	h.chiRouter.Get("/settings", h.appPage(h.settings))
+	h.chiRouter.Get("/feeds/{id}", h.appPage(h.feed))
+	h.chiRouter.Get("/feeds/{id}/settings", h.appPage(h.feedSettings))
 	h.chiRouter.Method(http.MethodGet, "/login", templ.Handler(pages.Login()))
 	h.chiRouter.Method(http.MethodGet, "/register", templ.Handler(pages.Register()))
 	h.chiRouter.Post("/login", h.login)
@@ -46,14 +51,8 @@ func (h *AuthHandler) RegisterRoutes() {
 	h.chiRouter.Post("/logout", h.logout)
 }
 
-func (h *AuthHandler) home(w http.ResponseWriter, r *http.Request) {
-	record := h.currentUser(r)
-	if record == nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	_ = pages.Home(record.Email()).Render(r.Context(), w)
+func (h *AuthHandler) home(w http.ResponseWriter, r *http.Request, record *core.Record) {
+	h.renderApp(w, r, record, "Home", pages.Home(record.Email()))
 }
 
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
@@ -133,13 +132,13 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) logout(w http.ResponseWriter, _ *http.Request) {
-	http.SetCookie(w, &http.Cookie{Name: authCookieName, Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: AuthCookieName, Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	htmxRedirect(w, "/login")
 }
 
 // currentUser resolves the signed in user from the auth cookie, nil when there is none.
 func (h *AuthHandler) currentUser(r *http.Request) *core.Record {
-	cookie, err := r.Cookie(authCookieName)
+	cookie, err := r.Cookie(AuthCookieName)
 	if err != nil {
 		return nil
 	}
@@ -161,7 +160,7 @@ func (h *AuthHandler) startSession(w http.ResponseWriter, r *http.Request, recor
 	}
 
 	cookie := &http.Cookie{
-		Name:     authCookieName,
+		Name:     AuthCookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,

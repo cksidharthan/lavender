@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	feedsController "github.com/cksidharthan/lavender/pkg/api/v1/feeds/controller"
 	healthzController "github.com/cksidharthan/lavender/pkg/api/v1/health/controller"
 	"github.com/cksidharthan/lavender/pkg/config"
 	"github.com/cksidharthan/lavender/pkg/middlewares"
@@ -63,6 +64,9 @@ func RunHTTPServer(logger *slog.Logger, appConfig *config.Config, lavenderOTEL *
 		return fmt.Errorf("error initializing healthz controller: %w", err)
 	}
 	healthzCtrl.RegisterRoutes()
+
+	// folders and feeds, used by the ui
+	feedsController.New(v1RouterGroup, logger, pbApp, uiHandlers.AuthCookieName).RegisterRoutes()
 
 	// ui (templ + htmx) pages
 	uiHandlers.NewAuthHandler(mainChiRouter, logger, pbApp).RegisterRoutes()

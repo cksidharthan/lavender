@@ -1,0 +1,20 @@
+package pages
+
+import "github.com/cksidharthan/lavender/pkg/ui/components"
+
+templ Settings(name, email string) {
+	<div class="max-w-md">
+		<h1 class={ components.TitleClass }>Settings</h1>
+		<p class={ components.SubtitleClass }>Manage your account.</p>
+		<dl class="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white text-sm">
+			<div class="flex justify-between gap-4 p-4">
+				<dt class="text-slate-500">Name</dt>
+				<dd class="font-medium">{ name }</dd>
+			</div>
+			<div class="flex justify-between gap-4 p-4">
+				<dt class="text-slate-500">Email</dt>
+				<dd class="font-medium">{ email }</dd>
+			</div>
+		</dl>
+	</div>
+}

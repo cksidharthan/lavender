@@ -1,0 +1,91 @@
+package layouts
+
+import "github.com/cksidharthan/lavender/pkg/ui/components"
+
+// App is the shell for the signed in pages: a sidebar with the feeds on the left and the page content on the right.
+templ App(title string, sidebar components.SidebarProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+			<title>{ title } · Lavender</title>
+			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body class="h-dvh bg-slate-50 font-sans text-slate-950 antialiased">
+			<div class="flex h-dvh">
+				@components.Sidebar(sidebar)
+				<div id="sidebar-backdrop" class="fixed inset-0 z-30 hidden bg-slate-950/30 data-[open]:block md:hidden" onclick="toggleSidebar(false)"></div>
+				<div class="flex min-w-0 flex-1 flex-col">
+					<header class="flex h-12 items-center gap-3 border-b border-slate-200 bg-white px-4 md:hidden">
+						<button type="button" aria-label="Open menu" onclick="toggleSidebar(true)" class="-ml-1.5 flex size-9 cursor-pointer items-center justify-center rounded-md text-slate-600 hover:bg-slate-100">
+							<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+						</button>
+						<span class="font-semibold text-indigo-950">Lavender</span>
+					</header>
+					<main id="content" class="flex-1 overflow-y-auto p-6">
+						{ children... }
+					</main>
+				</div>
+			</div>
+			@components.ConfirmModal(components.ConfirmModalProps{
+				ID:           "logout-modal",
+				Title:        "Log out?",
+				Message:      "You will need to sign in again to access your account.",
+				ConfirmLabel: "Logout",
+				CancelLabel:  "Cancel",
+				Danger:       true,
+				ConfirmAttrs: templ.Attributes{"hx-post": "/logout"},
+			})
+			@components.ToastContainer()
+			<script>
+				function toggleSidebar(open) {
+					document.getElementById('sidebar').toggleAttribute('data-open', open);
+					document.getElementById('sidebar-backdrop').toggleAttribute('data-open', open);
+				}
+				// highlight the sidebar link of the page that is showing and close the mobile sidebar after navigating
+				function markActive() {
+					document.querySelectorAll('[data-nav]').forEach(function (a) {
+						if (new URL(a.href).pathname === location.pathname) a.setAttribute('aria-current', 'page');
+						else a.removeAttribute('aria-current');
+					});
+				}
+				markActive();
+				document.addEventListener('htmx:pushedIntoHistory', function () { markActive(); toggleSidebar(false); });
+				document.addEventListener('htmx:oobAfterSwap', markActive);
+				window.addEventListener('popstate', markActive);
+				// open feed menus to the right of the sidebar, level with their button
+				document.addEventListener('toggle', function (e) {
+					if (!e.target.matches('[data-menu]') || e.newState !== 'open') return;
+					var menu = e.target;
+					var btn = document.querySelector('[popovertarget="' + menu.id + '"]');
+					var side = document.getElementById('sidebar').getBoundingClientRect();
+					var r = btn.getBoundingClientRect();
+					var left = Math.min(side.right + 8, window.innerWidth - menu.offsetWidth - 8);
+					var top = Math.min(r.top, window.innerHeight - menu.offsetHeight - 8);
+					menu.style.left = left + 'px';
+					menu.style.top = Math.max(8, top) + 'px';
+				}, true);
+				// menu items with data-open-modal open that dialog, filled with the data-name of the item
+				document.addEventListener('click', function (e) {
+					var item = e.target.closest('[data-open-modal]');
+					if (!item) return;
+					var modal = document.getElementById(item.dataset.openModal);
+					modal.querySelectorAll('[data-fill-text]').forEach(function (el) { el.textContent = item.dataset.name; });
+					modal.querySelectorAll('[data-fill-id]').forEach(function (el) { el.value = item.dataset.id; });
+					modal.querySelectorAll('input[name=name][type=text]').forEach(function (el) { if (item.dataset.name) el.value = item.dataset.name; });
+					var menu = item.closest('[data-menu]');
+					if (menu) menu.hidePopover();
+					modal.showModal();
+				});
+				// close the menu once an item is picked
+				document.addEventListener('click', function (e) {
+					var item = e.target.closest('[data-menu] [role=menuitem]');
+					if (item) item.closest('[data-menu]').hidePopover();
+				});
+			</script>
+		</body>
+	</html>
+}
