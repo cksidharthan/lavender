@@ -46,8 +46,7 @@ tasks:
   run:
     desc: run the application
     cmds:
-      - task: generate
-      - go run main.go
+      - go tool templ generate --watch --cmd="go run ." --proxy="http://localhost:8080"
 
   test:
     desc: run the unit and integration tests
