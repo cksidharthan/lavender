@@ -301,7 +301,7 @@ func PasswordField(p FieldProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "> <button type=\"button\" class=\"absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-r-lg text-slate-400 transition hover:text-slate-600\" aria-label=\"Toggle password visibility\" onclick=\"const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'\"><svg class=\"size-[18px]\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z\"></path> <circle cx=\"12\" cy=\"12\" r=\"3\"></circle></svg></button></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "> <button type=\"button\" class=\"absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-r-lg text-slate-400 transition hover:text-slate-600\" aria-label=\"Toggle password visibility\" onclick=\"const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'\"><svg class=\"size-4.5\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z\"></path> <circle cx=\"12\" cy=\"12\" r=\"3\"></circle></svg></button></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
