@@ -73,10 +73,12 @@ func (c *Controller) RegisterRoutes() {
 		r.Post("/folders/delete", c.deleteFolder)
 
 		r.Post("/articles/favourite", c.toggleSaved(pages.SaveFavourite, db.SavedFavourite, "favourites"))
+		r.Post("/articles/progress", c.audioProgress)
 		r.Post("/articles/read-later", c.toggleSaved(pages.SaveReadLater, db.SavedReadLater, "read later"))
 
 		r.Post("/feeds", c.addFeed)
 		r.Post("/feeds/rename", c.renameFeed)
+		r.Post("/feeds/url", c.updateFeedURL)
 		r.Post("/feeds/settings", c.feedSettings)
 		r.Post("/feeds/refresh", c.refreshFeed)
 		r.Post("/feeds/clear", c.clearFeed)
@@ -161,6 +163,22 @@ func (c *Controller) renameFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c.done(w, r, user, err, "Feed renamed.", "Could not rename the feed")
+}
+
+func (c *Controller) updateFeedURL(w http.ResponseWriter, r *http.Request) {
+	user, ok := c.form(w, r)
+	if !ok {
+		return
+	}
+
+	id := r.PostFormValue("id")
+	err := c.store.UpdateFeedURL(user.Id, id, r.PostFormValue("url"))
+	if err == nil {
+		reloadIfViewing(w, r, id)
+		w.Header().Set("HX-Trigger", "reload-feed-page")
+	}
+
+	c.done(w, r, user, err, "Feed address updated, its articles are being fetched.", "Could not update the feed address")
 }
 
 // feedSettings saves the settings of a feed: its refresh interval, whether it is on the home page and its icon.
@@ -380,6 +398,33 @@ func (c *Controller) toggleSaved(slug, kind, listName string) http.HandlerFunc {
 		} else {
 			c.toast(w, r, components.ToastInfo, "", "Removed from "+listName+".")
 		}
+	}
+}
+
+// audioProgress stores how far the user is in the audio of an article. It is called by the player in the background,
+// so it answers with no content and no toast.
+func (c *Controller) audioProgress(w http.ResponseWriter, r *http.Request) {
+	user, ok := c.form(w, r)
+	if !ok {
+		return
+	}
+
+	seconds, err := strconv.ParseFloat(r.PostFormValue("seconds"), 64)
+	if err == nil {
+		err = c.store.SaveAudioProgress(user.Id, r.PostFormValue("id"), seconds)
+	}
+
+	var invalid store.InvalidError
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, store.ErrNotFound):
+		http.NotFound(w, r)
+	case errors.As(err, &invalid) || errors.Is(err, strconv.ErrSyntax) || errors.Is(err, strconv.ErrRange):
+		http.Error(w, "invalid position", http.StatusBadRequest)
+	default:
+		c.logError(r, "error saving audio progress", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 

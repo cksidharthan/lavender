@@ -30,6 +30,7 @@ type StatTile struct {
 type FeedRow struct {
 	ID          string
 	Title       string
+	URL         string
 	Folder      string
 	IconURL     string
 	Articles    string

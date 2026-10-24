@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"net/mail"
 	"net/url"
 	"path"
@@ -43,6 +44,8 @@ func (e InvalidError) Error() string { return e.Message }
 type Feed struct {
 	ID    string
 	Title string
+	// URL is the address of the feed itself.
+	URL string
 	// IconURL is the logo of the feed, or the favicon of its site.
 	IconURL  string
 	Settings FeedSettings
@@ -62,6 +65,7 @@ type Article struct {
 	Content     string // as in the feed, it can hold html
 	Author      string
 	ImageURL    string
+	AudioURL    string
 	PublishedAt time.Time // zero when the feed has no date
 }
 
@@ -118,7 +122,7 @@ func (s *Store) Tree(userID string) ([]Folder, error) {
 	byFolder := make(map[string][]Feed)
 	for _, r := range feedRecords {
 		folderID := r.GetString("folder")
-		byFolder[folderID] = append(byFolder[folderID], Feed{ID: r.Id, Title: feedTitle(r), IconURL: feedIcon(r), Settings: feedSettings(r)})
+		byFolder[folderID] = append(byFolder[folderID], Feed{ID: r.Id, Title: feedTitle(r), URL: r.GetString("feed_url"), IconURL: feedIcon(r), Settings: feedSettings(r)})
 	}
 
 	tree := make([]Folder, 0, len(folderRecords)+1)
@@ -232,7 +236,7 @@ func (s *Store) FindFeed(userID, id string) (Feed, error) {
 		return Feed{}, err
 	}
 
-	return Feed{ID: r.Id, Title: feedTitle(r), IconURL: feedIcon(r), Settings: feedSettings(r), IconCandidates: iconCandidates(r), LastError: r.GetString("last_error")}, nil
+	return Feed{ID: r.Id, Title: feedTitle(r), URL: r.GetString("feed_url"), IconURL: feedIcon(r), Settings: feedSettings(r), IconCandidates: iconCandidates(r), LastError: r.GetString("last_error")}, nil
 }
 
 // FeedIDs returns the ids of the feeds of the user.
@@ -354,6 +358,33 @@ func (s *Store) RenameFeed(userID, id, title string) error {
 	return s.save(r, "")
 }
 
+// UpdateFeedURL changes the address of a feed of the user. The feed is fetched again from the new address, and the
+// error of the last fetch is cleared.
+func (s *Store) UpdateFeedURL(userID, id, rawURL string) error {
+	u, err := feedfetch.ParseURL(strings.TrimSpace(rawURL))
+	if err != nil {
+		return InvalidError{Message: err.Error()}
+	}
+	if len(u.String()) > 512 {
+		return InvalidError{Message: "The feed address is too long."}
+	}
+
+	r, err := s.owned(db.FeedsCollection, userID, id)
+	if err != nil {
+		return err
+	}
+
+	if r.GetString("feed_url") == u.String() {
+		return nil
+	}
+
+	r.Set("feed_url", u.String())
+	r.Set("last_error", "")
+	r.Set("last_fetched_at", "")
+
+	return s.save(r, "You already follow this feed.")
+}
+
 func (s *Store) DeleteFeed(userID, id string) error {
 	r, err := s.owned(db.FeedsCollection, userID, id)
 	if err != nil {
@@ -399,6 +430,7 @@ func toArticle(r *core.Record) Article {
 		Content:     r.GetString("content"),
 		Author:      r.GetString("author"),
 		ImageURL:    r.GetString("image_url"),
+		AudioURL:    r.GetString("audio_url"),
 		PublishedAt: r.GetDateTime("published_at").Time(),
 	}
 }
@@ -508,6 +540,69 @@ func (s *Store) ToggleSaved(userID, articleID, kind string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// SaveAudioProgress stores how far the user is in the audio of an article. Zero removes it, as for an episode that is
+// finished.
+func (s *Store) SaveAudioProgress(userID, articleID string, seconds float64) error {
+	if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 {
+		return InvalidError{Message: "Invalid position."}
+	}
+
+	article, err := s.app.FindRecordById(db.ArticlesCollection, articleID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("error finding article: %w", err)
+	}
+	// an article is only the user's when its feed is.
+	if _, err := s.owned(db.FeedsCollection, userID, article.GetString("feed")); err != nil {
+		return err
+	}
+
+	existing, err := s.app.FindAllRecords(db.AudioProgressCollection, dbx.HashExp{"user": userID, "article": articleID})
+	if err != nil {
+		return fmt.Errorf("error finding audio progress: %w", err)
+	}
+	if seconds == 0 {
+		for _, r := range existing {
+			if err := s.app.Delete(r); err != nil {
+				return fmt.Errorf("error removing audio progress: %w", err)
+			}
+		}
+
+		return nil
+	}
+
+	var r *core.Record
+	if len(existing) > 0 {
+		r = existing[0]
+	} else {
+		collection, err := s.app.FindCollectionByNameOrId(db.AudioProgressCollection)
+		if err != nil {
+			return fmt.Errorf("error finding audio progress collection: %w", err)
+		}
+		r = core.NewRecord(collection)
+		r.Set("user", userID)
+		r.Set("article", articleID)
+	}
+	r.Set("seconds", seconds)
+
+	return s.save(r, "")
+}
+
+// AudioProgress returns how far the user is in the audio of an article, 0 for the start.
+func (s *Store) AudioProgress(userID, articleID string) (float64, error) {
+	existing, err := s.app.FindAllRecords(db.AudioProgressCollection, dbx.HashExp{"user": userID, "article": articleID})
+	if err != nil {
+		return 0, fmt.Errorf("error finding audio progress: %w", err)
+	}
+	if len(existing) == 0 {
+		return 0, nil
+	}
+
+	return existing[0].GetFloat("seconds"), nil
 }
 
 // SavedState returns how the user saved each of the articles, by article id. Articles that are not saved are not in it.
@@ -703,15 +798,16 @@ func (s *Store) SaveFetch(feedID string, result feedfetch.Result) (int, error) {
 			ID       string `db:"id"`
 			GUID     string `db:"guid"`
 			ImageURL string `db:"image_url"`
+			AudioURL string `db:"audio_url"`
 		}
-		if err := tx.DB().Select("id", "guid", "image_url").From(db.ArticlesCollection).Where(dbx.HashExp{"feed": feedID}).All(&known); err != nil {
+		if err := tx.DB().Select("id", "guid", "image_url", "audio_url").From(db.ArticlesCollection).Where(dbx.HashExp{"feed": feedID}).All(&known); err != nil {
 			return err
 		}
 		seen := make(map[string]struct{}, len(known)+len(result.Items))
-		stored := make(map[string]struct{ id, image string }, len(known)) // by guid
+		stored := make(map[string]struct{ id, image, audio string }, len(known)) // by guid
 		for _, k := range known {
 			seen[k.GUID] = struct{}{}
-			stored[k.GUID] = struct{ id, image string }{k.ID, k.ImageURL}
+			stored[k.GUID] = struct{ id, image, audio string }{k.ID, k.ImageURL, k.AudioURL}
 		}
 
 		collection, err := tx.FindCollectionByNameOrId(db.ArticlesCollection)
@@ -726,7 +822,16 @@ func (s *Store) SaveFetch(feedID string, result feedfetch.Result) (int, error) {
 					if _, err := tx.DB().Update(db.ArticlesCollection, dbx.Params{"image_url": truncate(item.ImageURL, 2048)}, dbx.HashExp{"id": known.id}).Execute(); err != nil {
 						return err
 					}
-					stored[item.GUID] = struct{ id, image string }{known.id, item.ImageURL}
+					known.image = item.ImageURL
+					stored[item.GUID] = known
+				}
+				// the same for the audio of articles stored before it was read.
+				if known := stored[item.GUID]; item.AudioURL != "" && item.AudioURL != known.audio {
+					if _, err := tx.DB().Update(db.ArticlesCollection, dbx.Params{"audio_url": truncate(item.AudioURL, 2048)}, dbx.HashExp{"id": known.id}).Execute(); err != nil {
+						return err
+					}
+					known.audio = item.AudioURL
+					stored[item.GUID] = known
 				}
 
 				continue
@@ -742,6 +847,7 @@ func (s *Store) SaveFetch(feedID string, result feedfetch.Result) (int, error) {
 			a.Set("content", item.Content)
 			a.Set("author", truncate(item.Author, 255))
 			a.Set("image_url", truncate(item.ImageURL, 2048))
+			a.Set("audio_url", truncate(item.AudioURL, 2048))
 			// an article without a date is dated when it is found, so it has a place in the lists that are by date.
 			published := item.PublishedAt
 			if published.IsZero() {
@@ -861,6 +967,7 @@ func (s *Store) SetDefaultRefreshMinutes(userID string, minutes int) error {
 type FeedStat struct {
 	ID          string
 	Title       string
+	URL         string // the address of the feed
 	Folder      string // empty when the feed is in no folder
 	IconURL     string
 	Articles    int
@@ -946,6 +1053,7 @@ func (s *Store) Stats(userID string, defaultInterval time.Duration) (Stats, erro
 		stat := FeedStat{
 			ID:             r.Id,
 			Title:          feedTitle(r),
+			URL:            r.GetString("feed_url"),
 			Folder:         folderNames[r.GetString("folder")],
 			IconURL:        feedIcon(r),
 			Articles:       countOf[r.Id],

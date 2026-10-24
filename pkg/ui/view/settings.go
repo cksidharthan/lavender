@@ -50,6 +50,7 @@ func Settings(user *core.Record, stats store.Stats, serverRefresh time.Duration,
 		row := pages.FeedRow{
 			ID:          f.ID,
 			Title:       plainText(f.Title),
+			URL:         f.URL,
 			Folder:      plainText(f.Folder),
 			IconURL:     IconPath(f.ID, f.IconURL),
 			Articles:    number(f.Articles),

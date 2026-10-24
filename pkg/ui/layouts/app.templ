@@ -82,6 +82,40 @@ templ App(title string, sidebar components.SidebarProps) {
 					if (!panel.open) panel.showModal();
 				}
 				// show the new articles after a refresh, when the home page or a feed is open
+				// remember where the user is in an episode on the server, so it goes on from there on any device
+				(function () {
+					var saved = 0;
+					function isPlayer(a) { return a instanceof HTMLAudioElement && a.dataset.articleId; }
+					function send(a, seconds) {
+						saved = seconds;
+						fetch('/api/v1/articles/progress', {
+							method: 'POST',
+							credentials: 'same-origin',
+							keepalive: true,
+							headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+							body: new URLSearchParams({ id: a.dataset.articleId, seconds: String(seconds) })
+						}).catch(function () {});
+					}
+					document.addEventListener('loadedmetadata', function (e) {
+						var a = e.target;
+						if (!isPlayer(a)) return;
+						var t = parseFloat(a.dataset.start);
+						saved = t || 0;
+						if (t > 0 && t < a.duration - 5) a.currentTime = t;
+					}, true);
+					document.addEventListener('timeupdate', function (e) {
+						var a = e.target;
+						// not on every tick, once in a while is enough
+						if (isPlayer(a) && !a.paused && Math.abs(a.currentTime - saved) >= 10) send(a, Math.floor(a.currentTime));
+					}, true);
+					document.addEventListener('pause', function (e) {
+						var a = e.target;
+						if (isPlayer(a) && !a.ended && Math.abs(a.currentTime - saved) >= 1) send(a, Math.floor(a.currentTime));
+					}, true);
+					document.addEventListener('ended', function (e) {
+						if (isPlayer(e.target)) send(e.target, 0);
+					}, true);
+				})();
 				function reloadFeedPage() {
 					if (/^\/(feeds\/[^/]+|today|favourites|read-later|settings(\/(feeds|data))?)?$/.test(location.pathname)) {
 						htmx.ajax('GET', location.pathname, { target: '#content', swap: 'innerHTML' });

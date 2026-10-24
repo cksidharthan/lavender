@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"syscall"
@@ -18,6 +19,7 @@ import (
 	lavenderOTEL "github.com/cksidharthan/lavender/pkg/otel"
 	"github.com/cksidharthan/lavender/pkg/pocketbase/db"
 	"github.com/mmcdole/gofeed"
+	ext "github.com/mmcdole/gofeed/extensions"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/net/html"
 )
@@ -51,6 +53,7 @@ type Item struct {
 	Content     string
 	Author      string
 	ImageURL    string
+	AudioURL    string    // the episode of a podcast, empty when the article has no audio
 	PublishedAt time.Time // zero when the feed has no date
 }
 
@@ -244,10 +247,17 @@ func toItem(it *gofeed.Item) (Item, bool) {
 		return Item{}, false
 	}
 
-	if it.Author != nil {
-		item.Author = strings.TrimSpace(it.Author.Name)
+	for _, a := range it.Authors {
+		if a == nil {
+			continue
+		}
+		if name := strings.TrimSpace(a.Name); name != "" {
+			item.Author = name
+			break
+		}
 	}
 	item.ImageURL = itemImage(it)
+	item.AudioURL = itemAudio(it)
 	switch {
 	case it.PublishedParsed != nil:
 		item.PublishedAt = it.PublishedParsed.UTC()
@@ -293,16 +303,71 @@ func itemImage(it *gofeed.Item) string {
 		}
 	}
 	for _, name := range []string{"content", "thumbnail"} {
-		for _, ext := range it.Extensions["media"][name] {
-			if medium := ext.Attrs["medium"]; medium != "" && medium != "image" {
-				continue
+		candidates = mediaCandidates(candidates, it.Extensions["media"][name])
+	}
+	// YouTube nests its thumbnail in a media:group.
+	for _, group := range it.Extensions["media"]["group"] {
+		for _, name := range []string{"content", "thumbnail"} {
+			candidates = mediaCandidates(candidates, group.Children[name])
+		}
+	}
+	if len(candidates) == 0 {
+		for _, ext := range it.Extensions["yt"]["videoId"] {
+			if id := strings.TrimSpace(ext.Value); id != "" {
+				candidates = addCandidate(candidates, "https://i.ytimg.com/vi/"+url.PathEscape(id)+"/hqdefault.jpg", 0)
 			}
-			width, _ := strconv.Atoi(ext.Attrs["width"])
-			candidates = addCandidate(candidates, ext.Attrs["url"], width)
 		}
 	}
 
 	return bestCandidate(append(candidates, markupCandidates(it.Content+it.Description)...))
+}
+
+func mediaCandidates(candidates []candidate, exts []ext.Extension) []candidate {
+	for _, e := range exts {
+		if medium := e.Attrs["medium"]; medium != "" && medium != "image" {
+			continue
+		}
+		if t := e.Attrs["type"]; t != "" && !strings.HasPrefix(t, "image/") {
+			continue
+		}
+		width, _ := strconv.Atoi(e.Attrs["width"])
+		candidates = addCandidate(candidates, e.Attrs["url"], width)
+	}
+
+	return candidates
+}
+
+// itemAudio finds the audio file of an article: the first audio enclosure, or media content that is audio.
+func itemAudio(it *gofeed.Item) string {
+	for _, e := range it.Enclosures {
+		if strings.HasPrefix(e.Type, "audio/") || (e.Type == "" && audioExtension(e.URL)) {
+			if u := webURL(e.URL); u != "" {
+				return u
+			}
+		}
+	}
+	for _, ext := range it.Extensions["media"]["content"] {
+		if strings.HasPrefix(ext.Attrs["type"], "audio/") || ext.Attrs["medium"] == "audio" {
+			if u := webURL(ext.Attrs["url"]); u != "" {
+				return u
+			}
+		}
+	}
+
+	return ""
+}
+
+func audioExtension(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(path.Ext(u.Path)) {
+	case ".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wav":
+		return true
+	}
+
+	return false
 }
 
 // PickImage returns the best picture of an article from the one that is stored and the pictures in its text.

@@ -20,6 +20,9 @@ templ Feed(f components.Feed, page ArticlePage) {
 				Refresh
 			}
 		</div>
+		<p class="mt-1 flex min-w-0 items-center gap-2 text-sm text-slate-500">
+			<span class="truncate" title={ f.URL }>{ f.URL }</span>
+		</p>
 		if len(page.Items) == 0 {
 			<p class={ components.SubtitleClass }>No articles yet. They are fetched in the background, check again in a moment.</p>
 		} else {
@@ -102,6 +105,9 @@ templ Article(a ArticleDetail) {
 				</div>
 			} else if a.Image != "" {
 				<img src={ a.Image } alt="" referrerpolicy="no-referrer" class="mb-8 max-h-[32rem] w-full rounded-2xl bg-slate-100 object-contain"/>
+			}
+			if a.Audio != "" {
+				<audio controls preload="metadata" src={ a.Audio } data-article-id={ a.ID } data-start={ audioStart(a) } class="audio-player mb-8 w-full"></audio>
 			}
 			if a.FeedName != "" {
 				<p class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-brand uppercase">

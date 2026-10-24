@@ -96,6 +96,7 @@ type articleRecord struct {
 	Content     string     `json:"content,omitempty"`
 	Author      string     `json:"author,omitempty"`
 	ImageURL    string     `json:"image_url,omitempty"`
+	AudioURL    string     `json:"audio_url,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
@@ -252,6 +253,7 @@ func writeArticles(zw *zip.Writer, app core.App, feeds []*core.Record) error {
 					Content:     r.GetString("content"),
 					Author:      r.GetString("author"),
 					ImageURL:    r.GetString("image_url"),
+					AudioURL:    r.GetString("audio_url"),
 					PublishedAt: timeOf(r.GetDateTime("published_at").Time()),
 				}); err != nil {
 					return fmt.Errorf("error writing the backup: %w", err)
@@ -554,6 +556,7 @@ func importAll(tx core.App, userID string, prefs settings, folders []folderRecor
 					r.Set("content", a.Content)
 					r.Set("author", truncate(a.Author, 255))
 					r.Set("image_url", webURL(a.ImageURL, 2048))
+					r.Set("audio_url", webURL(a.AudioURL, 2048))
 					if a.PublishedAt != nil {
 						r.Set("published_at", a.PublishedAt.UTC())
 					}

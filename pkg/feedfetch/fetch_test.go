@@ -74,6 +74,34 @@ func TestItemImages(t *testing.T) {
 	require.Empty(t, result.Items[3].ImageURL)
 }
 
+func TestYouTubeThumbnail(t *testing.T) {
+	feed := `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/">
+<title>channel</title>
+<entry><id>yt:video:abc123</id><yt:videoId>abc123</yt:videoId><title>grouped</title>
+<media:group><media:title>grouped</media:title><media:content url="https://www.youtube.com/v/abc123?version=3" type="application/x-shockwave-flash" width="640" height="390"/><media:thumbnail url="https://i2.ytimg.com/vi/abc123/hqdefault.jpg" width="480" height="360"/></media:group></entry>
+<entry><id>yt:video:def456</id><yt:videoId>def456</yt:videoId><title>no thumbnail</title></entry>
+</feed>`
+
+	result, err := Parse(strings.NewReader(feed))
+	require.NoError(t, err)
+	require.Len(t, result.Items, 2)
+	require.Equal(t, "https://i2.ytimg.com/vi/abc123/hqdefault.jpg", result.Items[0].ImageURL, "the thumbnail in the media group")
+	require.Equal(t, "https://i.ytimg.com/vi/def456/hqdefault.jpg", result.Items[1].ImageURL, "built from the video id")
+}
+
+func TestItemAuthor(t *testing.T) {
+	feed := `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>t</title>
+<entry><id>a</id><title>a</title><author><name> Jane </name></author><author><name>Joe</name></author></entry>
+<entry><id>b</id><title>b</title></entry>
+</feed>`
+
+	result, err := Parse(strings.NewReader(feed))
+	require.NoError(t, err)
+	require.Len(t, result.Items, 2)
+	require.Equal(t, "Jane", result.Items[0].Author, "the first author, trimmed")
+	require.Empty(t, result.Items[1].Author)
+}
+
 func TestTheBiggestPictureWins(t *testing.T) {
 	// the shape of a reddit feed: a 140px thumbnail twice, and the full picture as a link in the text
 	feed := `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/"><title>t</title>
@@ -89,4 +117,19 @@ func TestTheBiggestPictureWins(t *testing.T) {
 	require.Equal(t, "https://a.example.com/big.png?w=1200", PickImage("https://a.example.com/small.png?w=140", `<img src="https://a.example.com/big.png?w=1200">`))
 	require.Equal(t, "https://a.example.com/stored.png", PickImage("https://a.example.com/stored.png", `<p>no picture</p>`))
 	require.Empty(t, PickImage("", `<p>none</p>`))
+}
+
+func TestParseReadsThePodcastAudio(t *testing.T) {
+	const feed = `<?xml version="1.0"?><rss version="2.0"><channel><title>Pod</title>
+<item><guid>1</guid><title>One</title><enclosure url="https://cdn.example.com/1.mp3" length="1" type="audio/mpeg"/></item>
+<item><guid>2</guid><title>Two</title><enclosure url="https://cdn.example.com/2.png" length="1" type="image/png"/></item>
+<item><guid>3</guid><title>Three</title><enclosure url="javascript:alert(1)" type="audio/mpeg"/></item>
+</channel></rss>`
+
+	result, err := Parse(strings.NewReader(feed))
+	require.NoError(t, err)
+	require.Len(t, result.Items, 3)
+	require.Equal(t, "https://cdn.example.com/1.mp3", result.Items[0].AudioURL)
+	require.Empty(t, result.Items[1].AudioURL, "an image is not audio")
+	require.Empty(t, result.Items[2].AudioURL, "only http(s) addresses are kept")
 }

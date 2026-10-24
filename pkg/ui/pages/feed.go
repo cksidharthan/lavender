@@ -41,10 +41,17 @@ type ArticleDetail struct {
 	Author    string
 	Date      string
 	Image     string
-	Video     string // the address of the player when the article is a video, shown instead of the picture
+	Audio     string  // the address of the audio file when the article is a podcast episode, shown with a player
+	AudioFrom float64 // seconds the player starts at, 0 for the beginning
+	Video     string  // the address of the player when the article is a video, shown instead of the picture
 	HTML      string
 	FeedName  string
 	FeedIcon  string
+}
+
+// audioStart is the second the player starts at.
+func audioStart(a ArticleDetail) string {
+	return strconv.FormatFloat(a.AudioFrom, 'f', 0, 64)
 }
 
 // articleAttrs make the card open the article in the panel.

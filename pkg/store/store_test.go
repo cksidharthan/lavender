@@ -593,3 +593,36 @@ func TestChangePassword(t *testing.T) {
 	require.ErrorAs(t, s.ChangePassword(alice, "password123", "another-password"), &invalid, "the old password is not the current one any more")
 	require.NoError(t, s.ChangePassword(alice, "a-new-password", "password123"))
 }
+
+func TestAudioProgressIsPerUserAndFinishedEpisodesAreForgotten(t *testing.T) {
+	s, alice, bob := newStore(t)
+	feed, err := s.AddFeed(alice, "https://pod.example.com/feed", "", feedfetch.Meta{Title: "Pod", Type: "rss"})
+	require.NoError(t, err)
+	_, err = s.SaveFetch(feed.ID, feedfetch.Result{Meta: feedfetch.Meta{Type: "rss"}, Items: []feedfetch.Item{{GUID: "1", Title: "1", AudioURL: "https://cdn.example.com/1.mp3"}}})
+	require.NoError(t, err)
+	articles, _, err := s.Articles(alice, feed.ID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, "https://cdn.example.com/1.mp3", articles[0].AudioURL)
+	id := articles[0].ID
+
+	got, err := s.AudioProgress(alice, id)
+	require.NoError(t, err)
+	require.Zero(t, got)
+
+	require.NoError(t, s.SaveAudioProgress(alice, id, 42))
+	require.NoError(t, s.SaveAudioProgress(alice, id, 90))
+	got, err = s.AudioProgress(alice, id)
+	require.NoError(t, err)
+	require.InDelta(t, 90, got, 0.001, "saving again replaces the position")
+
+	got, err = s.AudioProgress(bob, id)
+	require.NoError(t, err)
+	require.Zero(t, got, "the position of another user")
+	require.ErrorIs(t, s.SaveAudioProgress(bob, id, 5), store.ErrNotFound, "an article of another user")
+	require.Error(t, s.SaveAudioProgress(alice, id, -1))
+
+	require.NoError(t, s.SaveAudioProgress(alice, id, 0))
+	got, err = s.AudioProgress(alice, id)
+	require.NoError(t, err)
+	require.Zero(t, got)
+}

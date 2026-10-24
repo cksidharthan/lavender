@@ -21,12 +21,20 @@ type FeedSettings struct {
 type Feed struct {
 	ID       string
 	Title    string
+	URL      string // the address of the feed
 	IconURL  string // empty when there is none
 	Settings FeedSettings
 }
 
 // settingsJSON are the settings of the feed for the dialog. The names are the names of the fields of its form, the
 // script of the App layout fills the form with them.
+// FeedURLJSON are the values of the form of the dialog that edits the address of the feed.
+func FeedURLJSON(f Feed) string {
+	data, _ := json.Marshal(map[string]any{"id": f.ID, "url": f.URL})
+
+	return string(data)
+}
+
 func settingsJSON(f Feed) string {
 	refresh := ""
 	if f.Settings.RefreshMinutes > 0 {

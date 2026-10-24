@@ -14,7 +14,7 @@ func Sidebar(user *core.Record, tree []store.Folder) components.SidebarProps {
 	for _, f := range tree {
 		feeds := make([]components.Feed, 0, len(f.Feeds))
 		for _, feed := range f.Feeds {
-			feeds = append(feeds, components.Feed{ID: feed.ID, Title: feed.Title, IconURL: IconPath(feed.ID, feed.IconURL), Settings: FeedSettings(feed.Settings)})
+			feeds = append(feeds, components.Feed{ID: feed.ID, Title: feed.Title, URL: feed.URL, IconURL: IconPath(feed.ID, feed.IconURL), Settings: FeedSettings(feed.Settings)})
 		}
 
 		folders = append(folders, components.Folder{ID: f.ID, Name: f.Name, Feeds: feeds})

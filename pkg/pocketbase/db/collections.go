@@ -6,6 +6,7 @@ const (
 	FoldersCollection       = "folders"
 	ArticlesCollection      = "articles"
 	SavedArticlesCollection = "saved_articles"
+	AudioProgressCollection = "audio_progress"
 )
 
 // the kinds a user saves an article as.

@@ -337,7 +337,7 @@ func (h *AuthHandler) userFeed(w http.ResponseWriter, r *http.Request, user *cor
 		return components.Feed{}, false
 	}
 
-	return components.Feed{ID: f.ID, Title: f.Title, IconURL: view.IconPath(f.ID, f.IconURL)}, true
+	return components.Feed{ID: f.ID, Title: f.Title, URL: f.URL, IconURL: view.IconPath(f.ID, f.IconURL)}, true
 }
 
 // article answers one article of a feed, for the panel next to the list.
@@ -369,6 +369,14 @@ func (h *AuthHandler) article(w http.ResponseWriter, r *http.Request, user *core
 	lavenderOTEL.SetAttributes(r.Context(), attribute.String("feed.id", f.ID), attribute.String("article.id", a.ID))
 
 	detail := view.Article(a, saved[a.ID])
+	if detail.Audio != "" {
+		// a failure only means the episode starts from the beginning
+		if from, err := h.store.AudioProgress(user.Id, a.ID); err != nil {
+			h.logError(r, "error finding audio progress", err)
+		} else {
+			detail.AudioFrom = from
+		}
+	}
 	detail.FeedName, detail.FeedIcon = f.Title, f.IconURL
 
 	_ = pages.Article(detail).Render(r.Context(), w)

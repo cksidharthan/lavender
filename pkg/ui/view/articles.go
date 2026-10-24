@@ -142,6 +142,7 @@ func Article(a store.Article, saved store.SavedFlags) pages.ArticleDetail {
 		URL:       webURL(a.URL),
 		Author:    plainText(a.Author),
 		Image:     imageOf(a),
+		Audio:     webURL(a.AudioURL),
 		HTML:      articleHTML.Sanitize(firstNonEmpty(a.Content, a.Summary)),
 	}
 	detail.HTML = tidyBody(detail.HTML, detail.Image)
