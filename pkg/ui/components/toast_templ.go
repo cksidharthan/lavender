@@ -143,7 +143,7 @@ func Toast(p ToastProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" data-toast class=\"group pointer-events-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg shadow-slate-900/10 transition duration-200 starting:translate-y-2 starting:opacity-0\"><div class=\"flex items-start gap-3 p-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" data-toast class=\"group pointer-events-auto overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-lg shadow-black/10 transition duration-200 starting:translate-y-2 starting:opacity-0\"><div class=\"flex items-start gap-3 p-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

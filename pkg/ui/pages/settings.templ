@@ -6,7 +6,7 @@ import (
 	"github.com/cksidharthan/lavender/pkg/ui/components"
 )
 
-const cardClass = "rounded-2xl border border-slate-200 bg-white shadow-xs"
+const cardClass = "rounded-2xl border border-slate-200 bg-surface shadow-xs"
 
 // The settings page has tabs, each its own address, so a refresh and the back button keep the place. The tab bar and
 // the title are the same for all of them.
@@ -19,14 +19,16 @@ type settingsTab struct {
 
 var settingsTabs = []settingsTab{
 	{Name: "Account", Href: "/settings"},
+	{Name: "Appearance", Href: "/settings/appearance"},
 	{Name: "Feeds", Href: "/settings/feeds"},
 	{Name: "Data", Href: "/settings/data"},
 }
 
 const (
-	TabAccount = "/settings"
-	TabFeeds   = "/settings/feeds"
-	TabData    = "/settings/data"
+	TabAccount    = "/settings"
+	TabAppearance = "/settings/appearance"
+	TabFeeds      = "/settings/feeds"
+	TabData       = "/settings/data"
 )
 
 // SettingsAccount is the tab of the profile, the password and two-factor authentication.
@@ -35,7 +37,7 @@ templ SettingsAccount(p SettingsPage) {
 		<section class={ cardClass + " mt-6 p-5" } aria-labelledby="account-title">
 			<h2 id="account-title" class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Account</h2>
 			<div class="mt-4 flex flex-col gap-5 sm:flex-row">
-				<span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-brand to-indigo-400 text-xl font-semibold text-white" aria-hidden="true">{ p.Initials }</span>
+				<span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-brand to-indigo-400 text-xl font-semibold text-on-brand" aria-hidden="true">{ p.Initials }</span>
 				<form hx-post="/api/v1/account/profile" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="grid flex-1 gap-4 sm:grid-cols-2">
 					<div>
 						<label for="profile-name" class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Name</label>
@@ -75,6 +77,71 @@ templ SettingsAccount(p SettingsPage) {
 		</section>
 		@TwoFactor(p.TwoFactor)
 	}
+}
+
+// SettingsAppearance is the tab of the theme. A theme applies as soon as it is picked, and is kept on this device.
+templ SettingsAppearance(current string) {
+	@settingsLayout(TabAppearance) {
+		<section class={ cardClass + " mt-6 p-5" } aria-labelledby="theme-title">
+			<h2 id="theme-title" class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Theme</h2>
+			<p class="mt-1 text-sm text-slate-500">Pick the colours of the app. It is kept on this device, so a phone can be dark and a desktop light.</p>
+			<div role="radiogroup" aria-labelledby="theme-title" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+				for _, t := range Themes {
+					<button
+						type="button"
+						role="radio"
+						aria-checked={ strconv.FormatBool(t.ID == current) }
+						data-theme-option
+						data-theme-id={ t.ID }
+						onclick="pickTheme(this)"
+						class="group flex cursor-pointer flex-col gap-2 rounded-xl border border-slate-200 bg-surface p-2 text-left transition hover:border-slate-300 focus-visible:ring-4 focus-visible:ring-brand/15 focus-visible:outline-none aria-checked:border-brand aria-checked:ring-2 aria-checked:ring-brand"
+					>
+						@themePreview(t.ID)
+						<span class="flex items-center justify-between gap-2 px-1 pb-0.5">
+							<span class="min-w-0">
+								<span class="block truncate text-sm font-medium text-slate-900">{ t.Name }</span>
+								<span class="block truncate text-xs text-slate-500">{ t.Description }</span>
+							</span>
+							<svg class="hidden size-5 shrink-0 text-brand group-aria-checked:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"></path></svg>
+						</span>
+					</button>
+				}
+			</div>
+		</section>
+	}
+}
+
+// themePreview is a small version of the app in the colours of the theme. The element has the theme, so the colours of
+// what is in it are the ones of the theme. System shows a light and a dark half.
+templ themePreview(id string) {
+	if id == "system" {
+		<span class="flex h-20 overflow-hidden rounded-lg border border-slate-200">
+			@themePreviewHalf("light", "w-1/2")
+			@themePreviewHalf("dark", "w-1/2")
+		</span>
+	} else {
+		<span class="flex h-20 overflow-hidden rounded-lg border border-slate-200">
+			@themePreviewHalf(id, "w-full")
+		</span>
+	}
+}
+
+templ themePreviewHalf(id, width string) {
+	<span data-theme={ id } class={ "flex bg-slate-50 " + width }>
+		<span class="w-1/4 border-r border-slate-200 bg-surface p-1.5">
+			<i class="block h-1.5 rounded-full bg-brand"></i>
+			<i class="mt-1.5 block h-1 w-3/4 rounded-full bg-slate-300"></i>
+			<i class="mt-1 block h-1 w-1/2 rounded-full bg-slate-300"></i>
+		</span>
+		<span class="flex-1 p-1.5">
+			<span class="block rounded-md border border-slate-200 bg-surface p-1.5">
+				<i class="block h-1.5 w-4/5 rounded-full bg-slate-800"></i>
+				<i class="mt-1 block h-1 w-full rounded-full bg-slate-400"></i>
+				<i class="mt-1 block h-1 w-2/3 rounded-full bg-slate-400"></i>
+			</span>
+			<i class="mt-1.5 block h-2.5 w-1/2 rounded bg-brand"></i>
+		</span>
+	</span>
 }
 
 // SettingsFeeds is the tab of the refresh interval, the feeds and OPML.
@@ -173,7 +240,7 @@ templ SettingsFeeds(p SettingsPage) {
 					<h3 class="font-semibold text-slate-900">Import feeds</h3>
 					<p class="mt-2 text-sm text-slate-500">Add the feeds of an OPML file from another reader. The folders are created, and a feed that you follow already is skipped. Their articles are fetched in the background.</p>
 					<form hx-post="/api/v1/account/opml/import" hx-encoding="multipart/form-data" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-5 flex flex-1 flex-col justify-end gap-3">
-						<input type="file" name="file" accept=".opml,.xml,text/xml,text/x-opml,application/xml" required aria-label="OPML file" class="block w-full cursor-pointer rounded-lg border border-slate-200 bg-white text-sm text-slate-600 shadow-xs file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"/>
+						<input type="file" name="file" accept=".opml,.xml,text/xml,text/x-opml,application/xml" required aria-label="OPML file" class="block w-full cursor-pointer rounded-lg border border-slate-200 bg-surface text-sm text-slate-600 shadow-xs file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"/>
 						@components.Button(components.ButtonProps{Type: "submit", Variant: components.ButtonSecondary}) {
 							Import OPML
 						}
@@ -227,7 +294,7 @@ templ SettingsData(p SettingsPage) {
 						Choose a backup file. It is added to your account: what is there already stays, and a folder, feed or article that is in both is not added again. Importing the same file twice changes nothing.
 					</p>
 					<form hx-post="/api/v1/account/import" hx-encoding="multipart/form-data" hx-swap="none" hx-disabled-elt="find button[type=submit]" class="mt-5 flex flex-1 flex-col justify-end gap-3">
-						<input type="file" name="file" accept=".zip,application/zip" required aria-label="Backup file" class="block w-full cursor-pointer rounded-lg border border-slate-200 bg-white text-sm text-slate-600 shadow-xs file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"/>
+						<input type="file" name="file" accept=".zip,application/zip" required aria-label="Backup file" class="block w-full cursor-pointer rounded-lg border border-slate-200 bg-surface text-sm text-slate-600 shadow-xs file:mr-3 file:cursor-pointer file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"/>
 						@components.Button(components.ButtonProps{Type: "submit", Variant: components.ButtonSecondary}) {
 							Import backup
 						}
@@ -242,7 +309,7 @@ templ settingsLayout(active string) {
 	<div class="mx-auto max-w-5xl pb-10">
 		<header>
 			<h1 class={ components.TitleClass }>Settings</h1>
-			<p class="mt-1 text-sm text-slate-500">Your account, your feeds, and what is stored for them.</p>
+			<p class="mt-1 text-sm text-slate-500">Your account, how it looks, your feeds, and what is stored for them.</p>
 		</header>
 		<nav aria-label="Sections of the settings" class="mt-5 flex gap-1 overflow-x-auto border-b border-slate-200">
 			for _, tab := range settingsTabs {
@@ -272,7 +339,7 @@ templ feedRowMenu(f FeedRow) {
 	>
 		<svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>
 	</button>
-	<div id={ "row-menu-" + f.ID } popover data-menu data-menu-below role="menu" class="fixed m-0 w-52 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-lg shadow-slate-900/10">
+	<div id={ "row-menu-" + f.ID } popover data-menu data-menu-below role="menu" class="fixed m-0 w-52 rounded-lg border border-slate-200 bg-surface p-1 text-left shadow-lg shadow-black/10">
 		<button type="button" role="menuitem" class={ components.MenuItemClass } hx-post="/api/v1/feeds/refresh" hx-vals={ components.IDVals(f.ID) } hx-on::after-request="reloadFeedPage()" hx-swap="none">
 			<svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"></path></svg>
 			Refresh feed

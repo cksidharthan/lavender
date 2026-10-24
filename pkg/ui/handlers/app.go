@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -230,6 +232,17 @@ func (h *AuthHandler) settingsPage(tab string) func(w http.ResponseWriter, r *ht
 			return
 		}
 
+		if tab == pages.TabAppearance {
+			saved := ""
+			if c, err := r.Cookie("theme"); err == nil {
+				saved = c.Value
+			}
+
+			h.renderApp(w, r, user, "Settings", pages.SettingsAppearance(pages.ThemeID(saved)))
+
+			return
+		}
+
 		stats, err := h.store.Stats(user.Id, h.defaultRefresh)
 		if err != nil {
 			h.serverError(w, r, "error counting what is stored", err)
@@ -423,4 +436,88 @@ func (h *AuthHandler) icon(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) noIcon(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+}
+
+// searchQuery is the query of the request, as much of it as is searched.
+func searchQuery(r *http.Request) string {
+	return strings.Join(store.SearchTerms(r.URL.Query().Get("q")), " ")
+}
+
+// searchPage answers the articles a search found, for the page of the search, the live results and the next page.
+func (h *AuthHandler) searchPage(w http.ResponseWriter, r *http.Request, user *core.Record) (pages.SearchResultsProps, string, bool) {
+	query := searchQuery(r)
+	feedID := r.URL.Query().Get("feed")
+
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	articles, hasMore, err := h.store.SearchArticles(user.Id, feedID, query, articlesPageSize, offset)
+	if errors.Is(err, store.ErrNotFound) {
+		// a feed that is gone: search all of them
+		feedID = ""
+		articles, hasMore, err = h.store.SearchArticles(user.Id, "", query, articlesPageSize, offset)
+	}
+	if err != nil {
+		h.serverError(w, r, "error searching articles", err)
+		return pages.SearchResultsProps{}, "", false
+	}
+
+	saved, err := h.store.SavedState(user.Id, articleIDs(articles))
+	if err != nil {
+		h.serverError(w, r, "error finding saved articles", err)
+		return pages.SearchResultsProps{}, "", false
+	}
+
+	lavenderOTEL.RecordListPage(r.Context(), "search", len(articles))
+	lavenderOTEL.SetAttributes(r.Context(), attribute.Int("list.offset", offset), attribute.Int("list.articles", len(articles)))
+
+	moreURL := "/search/more?q=" + url.QueryEscape(query)
+	if feedID != "" {
+		moreURL += "&feed=" + url.QueryEscape(feedID)
+	}
+
+	return pages.SearchResultsProps{Query: query, Page: view.SearchArticles(query, articles, hasMore, offset, moreURL, saved)}, feedID, true
+}
+
+// search is the page to search the articles.
+func (h *AuthHandler) search(w http.ResponseWriter, r *http.Request, user *core.Record) {
+	results, feedID, ok := h.searchPage(w, r, user)
+	if !ok {
+		return
+	}
+
+	tree, err := h.store.Tree(user.Id)
+	if err != nil {
+		h.serverError(w, r, "error finding feeds", err)
+		return
+	}
+
+	h.renderApp(w, r, user, "Search", pages.Search(pages.SearchProps{
+		Query:   results.Query,
+		FeedID:  feedID,
+		Folders: view.Sidebar(user, tree).Folders,
+		Results: results,
+	}))
+}
+
+// searchResults answers the results below the search box, as the search is typed.
+func (h *AuthHandler) searchResults(w http.ResponseWriter, r *http.Request, user *core.Record) {
+	results, _, ok := h.searchPage(w, r, user)
+	if !ok {
+		return
+	}
+
+	_ = pages.SearchResults(results).Render(r.Context(), w)
+}
+
+// searchMore answers the next page of a search, as list items to add to the list.
+func (h *AuthHandler) searchMore(w http.ResponseWriter, r *http.Request, user *core.Record) {
+	results, _, ok := h.searchPage(w, r, user)
+	if !ok {
+		return
+	}
+
+	_ = pages.ArticleItems(results.Page).Render(r.Context(), w)
 }

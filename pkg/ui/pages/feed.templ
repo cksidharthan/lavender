@@ -37,11 +37,13 @@ templ Feed(f components.Feed, page ArticlePage) {
 // replaces itself with the next page, so the list grows in place.
 templ ArticleItems(page ArticlePage) {
 	for _, a := range page.Items {
-		<li class="group relative flex items-center gap-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm max-sm:gap-3 max-sm:p-3.5">
+		<li class="group relative flex items-center gap-5 rounded-xl border border-slate-200 bg-surface p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm max-sm:gap-3 max-sm:p-3.5">
 			<div class="min-w-0 flex-1">
 				<h2 class="flex items-start gap-2.5 text-base leading-snug font-semibold tracking-tight text-slate-900">
 					@components.FeedIcon(a.FeedIcon, a.FeedName, "mt-px size-5")
-					<button type="button" { articleAttrs(a)... } class="cursor-pointer text-left after:absolute after:inset-0 after:content-[''] hover:text-brand focus-visible:text-brand focus-visible:outline-none">{ a.Title }</button>
+					<button type="button" { articleAttrs(a)... } class="cursor-pointer text-left after:absolute after:inset-0 after:content-[''] hover:text-brand focus-visible:text-brand focus-visible:outline-none">
+						@highlighted(a.Title, page.Query)
+					</button>
 				</h2>
 				<div class="mt-1 flex items-center justify-between gap-2 pl-[1.875rem]">
 					<p class="min-w-0 truncate text-xs text-slate-500">
@@ -58,7 +60,9 @@ templ ArticleItems(page ArticlePage) {
 					</div>
 				</div>
 				if a.Summary != "" {
-					<p class="mt-2 line-clamp-3 pl-[1.875rem] text-sm leading-relaxed text-slate-600">{ a.Summary }</p>
+					<p class="mt-2 line-clamp-3 pl-[1.875rem] text-sm leading-relaxed text-slate-600">
+						@highlighted(a.Summary, page.Query)
+					</p>
 				}
 			</div>
 			if a.Image != "" {
@@ -131,7 +135,7 @@ templ Article(a ArticleDetail) {
 				@SaveButton(a.ID, SaveFavourite, a.Favourite, true, false)
 				@SaveButton(a.ID, SaveReadLater, a.ReadLater, true, false)
 				if a.URL != "" {
-					<a href={ templ.SafeURL(a.URL) } target="_blank" rel="noopener noreferrer" class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-300 hover:bg-slate-50">
+					<a href={ templ.SafeURL(a.URL) } target="_blank" rel="noopener noreferrer" class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-surface px-3.5 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-300 hover:bg-slate-50">
 						Open original
 						<svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"></path></svg>
 					</a>

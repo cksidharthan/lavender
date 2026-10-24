@@ -16,13 +16,14 @@ templ Sidebar(p SidebarProps) {
 	<aside
 		id="sidebar"
 		{ sidebarAttrs(p)... }
-		class="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-200 data-[open]:translate-x-0 md:static md:translate-x-0"
+		class="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] -translate-x-full flex-col border-r border-slate-200 bg-surface transition-transform duration-200 data-[open]:translate-x-0 md:static md:translate-x-0"
 	>
-		<div class="flex min-h-16 shrink-0 items-center border-b border-slate-100 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2">
+		<div class="flex min-h-16 shrink-0 items-center border-b border-slate-100 px-4 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-2">
 			@LogoSmall()
 		</div>
 		<div class="shrink-0 px-3 pt-3">
 			<nav aria-label="Lists" class="flex flex-col gap-0.5">
+				@searchItem()
 				@navItem("/", "Home", "M3 11.5 12 4l9 7.5M5 10v10h5v-6h4v6h5V10")
 				@navItem("/today", "Today", "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4")
 			</nav>
@@ -58,7 +59,7 @@ templ Sidebar(p SidebarProps) {
 						@IconPlus()
 					</button>
 				</div>
-				<div id="add-menu" popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
+				<div id="add-menu" popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-surface p-1 shadow-lg shadow-black/10">
 					<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="add-feed-modal">
 						@IconPlus()
 						Add feed
@@ -87,7 +88,7 @@ templ Sidebar(p SidebarProps) {
 				}
 			}
 		</nav>
-		<div class="border-t border-slate-100 p-3 pb-4">
+		<div class="border-t border-slate-100 p-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
 			<a href="/settings" { ContentLink("/settings")... } data-nav class="flex items-center gap-3 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 aria-[current=page]:bg-slate-100 aria-[current=page]:text-brand">
 				<span class="flex size-8 shrink-0 items-center justify-center">
 					<svg class="size-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -151,7 +152,7 @@ templ folderMenu(folder Folder) {
 	>
 		<svg class={ iconClass } viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>
 	</button>
-	<div id={ folderMenuID(folder.ID) } popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
+	<div id={ folderMenuID(folder.ID) } popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-surface p-1 shadow-lg shadow-black/10">
 		<button type="button" role="menuitem" class={ menuItemClass } data-open-modal="add-feed-modal" data-folder={ folder.ID }>
 			@IconPlus()
 			Add feed
@@ -180,7 +181,7 @@ templ feedMenu(f Feed) {
 	>
 		<svg class={ iconClass } viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg>
 	</button>
-	<div id={ "feed-menu-" + f.ID } popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg shadow-slate-900/10">
+	<div id={ "feed-menu-" + f.ID } popover data-menu role="menu" class="fixed m-0 w-44 rounded-lg border border-slate-200 bg-surface p-1 shadow-lg shadow-black/10">
 		<button type="button" role="menuitem" class={ menuItemClass } hx-post="/api/v1/feeds/refresh" hx-vals={ IDVals(f.ID) } hx-on::after-request="reloadFeedPage()" hx-swap="none">
 			<svg class={ iconClass } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"></path></svg>
 			Refresh
@@ -213,6 +214,15 @@ templ IconRefresh() {
 // FeedIcon is the icon of a feed. The letter of the feed shows below it, so there is something when the icon is
 // missing or does not load, in which case the image removes itself. The sizeClass sets the size of the icon.
 // navItem is a link of the lists at the top of the sidebar. It loads its page into the content area.
+// searchItem is the link to the search page, it looks like a search box.
+templ searchItem() {
+	<a href="/search" { ContentLink("/search")... } data-nav aria-keyshortcuts="/" class="mb-2 flex h-9 items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-sm text-slate-500 transition hover:border-slate-300 hover:bg-surface aria-[current=page]:border-brand/30 aria-[current=page]:bg-brand/10 aria-[current=page]:text-brand">
+		<svg class="size-4.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+		<span class="flex-1">Search</span>
+		<kbd class="hidden rounded border border-slate-300 bg-surface px-1.5 font-sans text-[0.7rem] leading-5 text-slate-400 md:block">/</kbd>
+	</a>
+}
+
 templ navItem(href, label, iconPath string) {
 	<a href={ templ.SafeURL(href) } { ContentLink(href)... } data-nav class="flex items-center gap-3 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 aria-[current=page]:bg-brand/10 aria-[current=page]:text-brand">
 		<svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={ iconPath }></path></svg>
@@ -224,7 +234,7 @@ templ FeedIcon(iconURL, title, sizeClass string) {
 	<span class={ "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 text-[0.625rem] leading-none font-semibold text-slate-500 " + sizeClass } aria-hidden="true">
 		{ feedInitial(title) }
 		if iconURL != "" {
-			<img src={ iconURL } alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" class="absolute inset-0 size-full bg-white object-contain"/>
+			<img src={ iconURL } alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" class="absolute inset-0 size-full bg-surface object-contain"/>
 		}
 	</span>
 }
@@ -241,7 +251,7 @@ templ AddFeedModal(folders []Folder) {
 			@TextField(FieldProps{ID: "feed-url", Name: "url", Label: "Feed URL", Type: "url", Placeholder: "https://example.com/feed.xml", Required: true})
 			<div class="mb-4">
 				<label for="feed-folder" class="mb-1.5 block font-medium text-slate-700 sm:text-sm">Folder (optional)</label>
-				<select id="feed-folder" name="folder" class={ inputClass }>
+				<select id="feed-folder" name="folder" data-select class={ inputClass }>
 					<option value="">No folder</option>
 					for _, f := range folders {
 						if f.ID != "" {

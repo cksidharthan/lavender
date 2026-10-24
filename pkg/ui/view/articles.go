@@ -69,6 +69,15 @@ func ListArticles(articles []store.FeedArticle, hasMore bool, offset int, moreUR
 	}
 }
 
+// SearchArticles builds a page of the articles a search found. The next page is at moreURL with the offset added, and
+// the query is marked in the articles.
+func SearchArticles(query string, articles []store.FeedArticle, hasMore bool, offset int, moreURL string, saved map[string]store.SavedFlags) pages.ArticlePage {
+	page := ListArticles(articles, hasMore, offset, moreURL, saved)
+	page.Query = query
+
+	return page
+}
+
 func articleItem(a store.Article, feed components.Feed, saved store.SavedFlags) pages.ArticleItem {
 	item := pages.ArticleItem{
 		ID:        a.ID,

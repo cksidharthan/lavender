@@ -29,6 +29,7 @@ type ArticlePage struct {
 	ShowFeed bool   // show the name of the feed of each article, for the lists that mix feeds
 	HasMore  bool   // there is a next page
 	MoreURL  string // where the next page is
+	Query    string // the words of a search, they are marked in the articles
 }
 
 // ArticleDetail is a whole article for the panel. HTML is sanitized, it is the only field that holds markup.
@@ -133,9 +134,9 @@ func saveButtonClass(kind string, active, panel bool) string {
 	}
 
 	if panel {
-		border := "border-slate-200 bg-white shadow-xs hover:border-slate-300"
+		border := "border-slate-200 bg-surface shadow-xs hover:border-slate-300"
 		if active {
-			border = "border-slate-200 bg-white shadow-xs hover:border-slate-300"
+			border = "border-slate-200 bg-surface shadow-xs hover:border-slate-300"
 		}
 
 		return "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3.5 text-sm font-medium transition " + border + " " + saveButtonPanelColor(kind, active)

@@ -626,3 +626,75 @@ func TestAudioProgressIsPerUserAndFinishedEpisodesAreForgotten(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, got)
 }
+
+func TestSearchArticlesMatchEveryWordInAnyFieldOfTheFeedsOfTheUser(t *testing.T) {
+	s, alice, bob := newStore(t)
+
+	blog, err := s.AddFeed(alice, "https://blog.example.com/feed", "", feedfetch.Meta{Title: "Blog", Type: "rss"})
+	require.NoError(t, err)
+	news, err := s.AddFeed(alice, "https://news.example.com/feed", "", feedfetch.Meta{Title: "News", Type: "rss"})
+	require.NoError(t, err)
+	other, err := s.AddFeed(bob, "https://other.example.com/feed", "", feedfetch.Meta{Title: "Other", Type: "rss"})
+	require.NoError(t, err)
+
+	day := func(d int) time.Time { return time.Date(2024, 5, d, 12, 0, 0, 0, time.UTC) }
+	save := func(feedID string, items ...feedfetch.Item) {
+		_, err := s.SaveFetch(feedID, feedfetch.Result{Meta: feedfetch.Meta{Type: "rss"}, Items: items})
+		require.NoError(t, err)
+	}
+	save(blog.ID,
+		feedfetch.Item{GUID: "1", Title: "Generics in Go", PublishedAt: day(1)},
+		feedfetch.Item{GUID: "2", Title: "Cooking", Content: "<p>A GO-to recipe</p>", PublishedAt: day(2)},
+		feedfetch.Item{GUID: "3", Title: "Sale 100% off", Author: "Jane", PublishedAt: day(3)},
+	)
+	save(news.ID, feedfetch.Item{GUID: "4", Title: "Go 1.25 released", PublishedAt: day(4)})
+	save(other.ID, feedfetch.Item{GUID: "5", Title: "Go of bob", PublishedAt: day(5)})
+
+	titles := func(articles []store.FeedArticle) []string {
+		out := make([]string, 0, len(articles))
+		for _, a := range articles {
+			out = append(out, a.Title)
+		}
+
+		return out
+	}
+
+	// any field, any case, newest first, only the feeds of the user
+	found, more, err := s.SearchArticles(alice, "", "go", 10, 0)
+	require.NoError(t, err)
+	require.False(t, more)
+	require.Equal(t, []string{"Go 1.25 released", "Cooking", "Generics in Go"}, titles(found))
+	require.Equal(t, "News", found[0].Feed.Title)
+
+	// every word has to match
+	found, _, err = s.SearchArticles(alice, "", "generics GO", 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Generics in Go"}, titles(found))
+
+	// the author, and a % is a letter
+	found, _, err = s.SearchArticles(alice, "", "jane", 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Sale 100% off"}, titles(found))
+	found, _, err = s.SearchArticles(alice, "", "100%", 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Sale 100% off"}, titles(found))
+	found, _, err = s.SearchArticles(alice, "", "%", 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Sale 100% off"}, titles(found))
+
+	// one feed, and the feed of someone else
+	found, _, err = s.SearchArticles(alice, blog.ID, "go", 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Cooking", "Generics in Go"}, titles(found))
+	_, _, err = s.SearchArticles(alice, other.ID, "go", 10, 0)
+	require.ErrorIs(t, err, store.ErrNotFound)
+
+	// paged, and an empty query finds nothing
+	found, more, err = s.SearchArticles(alice, "", "go", 2, 0)
+	require.NoError(t, err)
+	require.True(t, more)
+	require.Len(t, found, 2)
+	found, _, err = s.SearchArticles(alice, "", "   ", 10, 0)
+	require.NoError(t, err)
+	require.Empty(t, found)
+}

@@ -90,7 +90,7 @@ func ConfirmModal(p ConfirmModalProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" onclick=\"if (event.target === this) this.close()\" class=\"m-auto w-[calc(100%-2rem)] max-w-sm scale-95 rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 opacity-0 shadow-2xl transition-[opacity,scale,display,overlay] duration-200 transition-discrete backdrop:bg-slate-950/40 backdrop:backdrop-blur-sm open:scale-100 open:opacity-100 starting:open:scale-95 starting:open:opacity-0\"><h2 id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" onclick=\"if (event.target === this) this.close()\" class=\"m-auto w-[calc(100%-2rem)] max-w-sm scale-95 rounded-2xl border border-slate-200 bg-surface p-6 text-slate-950 opacity-0 shadow-2xl transition-[opacity,scale,display,overlay] duration-200 transition-discrete backdrop:bg-slate-950/40 backdrop:backdrop-blur-sm open:scale-100 open:opacity-100 starting:open:scale-95 starting:open:opacity-0\"><h2 id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

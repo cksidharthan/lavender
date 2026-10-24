@@ -1,10 +1,13 @@
 @import "tailwindcss";
+@import "./themes.css";
 
 @source "../**/*.templ";
 
 @theme {
   --color-brand: #3b37e8;
   --color-brand-dark: #2d29c4;
+  --color-on-brand: #fff;
+  --color-surface: #fff;
   --font-sans: Ubuntu, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --animate-toast-progress: toast-progress linear forwards;
@@ -23,7 +26,7 @@
 @layer base {
   @media (min-width: 40rem) {
     html {
-      font-size: 90%;
+      font-size: 100%;
     }
   }
 }
@@ -85,4 +88,25 @@
   .video { aspect-ratio: 16 / 9; width: 100%; overflow: hidden; border-radius: 0.75rem; background: var(--color-slate-900); }
   .video iframe { width: 100%; height: 100%; border: 0; }
   .article-body hr { border-color: var(--color-slate-200); }
+}
+
+/* In the home screen app on iOS, dvh stops short of the home indicator and leaves a strip at the bottom. vh covers the whole screen there. */
+@media (display-mode: standalone) {
+  .h-dvh {
+    height: 100vh;
+  }
+
+  @media (max-width: 47.999rem) {
+    #sidebar {
+      top: 0;
+      bottom: auto;
+      height: 100vh;
+    }
+  }
+
+  @media (max-width: 39.999rem) {
+    #article-panel {
+      height: calc(100vh - env(safe-area-inset-top) - 0.75rem);
+    }
+  }
 }

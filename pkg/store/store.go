@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -456,6 +457,72 @@ func (s *Store) homeArticles(userID, extraFilter string, extra dbx.Params, limit
 	records, err := s.app.FindRecordsByFilter(db.ArticlesCollection, "feed.user = {:user} && feed.hide_from_home = false"+extraFilter, "-published_at,-created", limit+1, offset, params)
 	if err != nil {
 		return nil, false, fmt.Errorf("error finding articles: %w", err)
+	}
+
+	hasMore := len(records) > limit
+	records = records[:min(len(records), limit)]
+
+	if errs := s.app.ExpandRecords(records, []string{"feed"}, nil); len(errs) > 0 {
+		return nil, false, fmt.Errorf("error finding the feeds of the articles: %v", errs)
+	}
+
+	return feedArticles(records), hasMore, nil
+}
+
+// maxSearchTerms and maxSearchLength keep a search cheap.
+const (
+	maxSearchTerms  = 5
+	maxSearchLength = 100
+)
+
+// SearchTerms are the words of a search, as they are matched. An article has to hold every one of them.
+func SearchTerms(query string) []string {
+	terms := strings.Fields(query)
+	if len(terms) > maxSearchTerms {
+		terms = terms[:maxSearchTerms]
+	}
+
+	for i, t := range terms {
+		if r := []rune(t); len(r) > maxSearchLength {
+			terms[i] = string(r[:maxSearchLength])
+		}
+	}
+
+	return terms
+}
+
+// SearchArticles returns a page of the articles of the user that hold every word of the query in the title, the
+// summary, the text or the author, the newest first, and whether there are more. The search covers all the feeds
+// of the user, also the ones hidden from home, or only the feed when there is one.
+func (s *Store) SearchArticles(userID, feedID, query string, limit, offset int) ([]FeedArticle, bool, error) {
+	terms := SearchTerms(query)
+	if len(terms) == 0 {
+		return nil, false, nil
+	}
+
+	filter := "feed.user = {:user}"
+	params := dbx.Params{"user": userID}
+
+	if feedID != "" {
+		if _, err := s.owned(db.FeedsCollection, userID, feedID); err != nil {
+			return nil, false, err
+		}
+
+		filter += " && feed = {:feed}"
+		params["feed"] = feedID
+	}
+
+	for i, t := range terms {
+		key := "t" + strconv.Itoa(i)
+		filter += " && (title ~ {:" + key + "} || summary ~ {:" + key + "} || author ~ {:" + key + "} || content ~ {:" + key + "})"
+		// a % in the word is a letter, not a wildcard.
+		params[key] = strings.ReplaceAll(t, "%", `\%`)
+	}
+
+	// one more than asked, to know if there is a next page.
+	records, err := s.app.FindRecordsByFilter(db.ArticlesCollection, filter, "-published_at,-created", limit+1, offset, params)
+	if err != nil {
+		return nil, false, fmt.Errorf("error searching articles: %w", err)
 	}
 
 	hasMore := len(records) > limit

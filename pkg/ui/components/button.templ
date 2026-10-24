@@ -28,11 +28,11 @@ func buttonClass(p ButtonProps) string {
 
 	switch p.Variant {
 	case ButtonSecondary:
-		class += "border-slate-200 bg-white text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-200"
+		class += "border-slate-200 bg-surface text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-200"
 	case ButtonDanger:
 		class += "border-red-600 bg-red-600 text-white shadow-red-600/25 hover:bg-red-700 focus-visible:ring-red-600/25"
 	default:
-		class += "border-brand bg-brand text-white shadow-brand/25 hover:bg-brand-dark focus-visible:ring-brand/25"
+		class += "border-brand bg-brand text-on-brand shadow-brand/25 hover:bg-brand-dark focus-visible:ring-brand/25"
 	}
 
 	if p.FullWidth {

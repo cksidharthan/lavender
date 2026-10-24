@@ -1,0 +1,31 @@
+package components
+
+// ThemeScript applies the theme of the user before the page is painted, so there is no flash of the wrong colours. The
+// theme is in a cookie, set by SetTheme from the settings. It is on the device, a phone can be dark and a desktop light.
+// It goes after the stylesheet, the colour of the browser bar is read from it.
+templ ThemeScript() {
+	<script>
+		(function () {
+			var root = document.documentElement;
+			var saved = document.cookie.match(/(?:^|; )theme=([a-z-]+)/);
+			root.dataset.theme = saved ? saved[1] : 'system';
+			function paintBar() {
+				var meta = document.querySelector('meta[name=theme-color]');
+				var colour = getComputedStyle(root).getPropertyValue('--color-surface').trim();
+				if (meta && colour) meta.content = colour;
+			}
+			window.setTheme = function (name) {
+				root.dataset.theme = name;
+				document.cookie = 'theme=' + name + '; path=/; max-age=31536000; samesite=lax';
+				paintBar();
+			};
+			// a button of the picker in the settings, it holds the theme in data-theme-id
+			window.pickTheme = function (button) {
+				setTheme(button.dataset.themeId);
+				document.querySelectorAll('[data-theme-option]').forEach(function (b) { b.setAttribute('aria-checked', b === button); });
+			};
+			paintBar();
+			matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintBar);
+		})();
+	</script>
+}

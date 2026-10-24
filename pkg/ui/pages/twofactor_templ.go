@@ -192,7 +192,7 @@ func twoFactorSetup(s TwoFactorSetup) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" alt=\"QR code to add Lavender to an authenticator app\" width=\"240\" height=\"240\" class=\"mt-3 size-48 rounded-lg border border-slate-200 bg-white p-2\"><p class=\"mt-3 text-xs text-slate-500\">Or type this key in the app:</p><p class=\"mt-1 font-mono text-sm tracking-wider break-all text-slate-800 select-all\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" alt=\"QR code to add Lavender to an authenticator app\" width=\"240\" height=\"240\" class=\"mt-3 size-48 rounded-lg border border-slate-200 bg-surface p-2\"><p class=\"mt-3 text-xs text-slate-500\">Or type this key in the app:</p><p class=\"mt-1 font-mono text-sm tracking-wider break-all text-slate-800 select-all\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -487,7 +487,7 @@ func twoFactorOn(s TwoFactorState) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, ".</span></p><div class=\"mt-4 grid gap-3 md:grid-cols-2\"><details class=\"rounded-xl border border-slate-200 bg-white p-4\"><summary class=\"cursor-pointer text-sm font-medium text-slate-900 select-none\">Make new recovery codes</summary><form hx-post=\"/api/v1/account/2fa/recovery\" hx-target=\"#twofa\" hx-swap=\"outerHTML\" hx-disabled-elt=\"find button[type=submit]\" class=\"mt-4\"><p class=\"mb-3 text-sm text-slate-500\">The ones you have stop working.</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, ".</span></p><div class=\"mt-4 grid gap-3 md:grid-cols-2\"><details class=\"rounded-xl border border-slate-200 bg-surface p-4\"><summary class=\"cursor-pointer text-sm font-medium text-slate-900 select-none\">Make new recovery codes</summary><form hx-post=\"/api/v1/account/2fa/recovery\" hx-target=\"#twofa\" hx-swap=\"outerHTML\" hx-disabled-elt=\"find button[type=submit]\" class=\"mt-4\"><p class=\"mb-3 text-sm text-slate-500\">The ones you have stop working.</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -517,7 +517,7 @@ func twoFactorOn(s TwoFactorState) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</form></details> <details class=\"rounded-xl border border-slate-200 bg-white p-4\"><summary class=\"cursor-pointer text-sm font-medium text-red-600 select-none\">Turn off</summary><form hx-post=\"/api/v1/account/2fa/disable\" hx-target=\"#twofa\" hx-swap=\"outerHTML\" hx-disabled-elt=\"find button[type=submit]\" class=\"mt-4\"><p class=\"mb-3 text-sm text-slate-500\">Signing in needs the password only again.</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</form></details> <details class=\"rounded-xl border border-slate-200 bg-surface p-4\"><summary class=\"cursor-pointer text-sm font-medium text-red-600 select-none\">Turn off</summary><form hx-post=\"/api/v1/account/2fa/disable\" hx-target=\"#twofa\" hx-swap=\"outerHTML\" hx-disabled-elt=\"find button[type=submit]\" class=\"mt-4\"><p class=\"mb-3 text-sm text-slate-500\">Signing in needs the password only again.</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

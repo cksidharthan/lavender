@@ -1,0 +1,286 @@
+/* The palettes of the themes, listed in the themes in pkg/ui/pages/themes.go. A theme sets the colours the
+   components use: the slate scale (page, borders and text, turned around for the dark themes), the surface of cards,
+   the brand colour and the status colours. [data-theme] is on the html element, and on the previews in the settings. */
+html { background: var(--color-surface); }
+
+[data-theme="light"] {
+  color-scheme:light;
+  --color-surface:#ffffff;
+  --color-slate-50:#f8fafc;
+  --color-slate-100:#f1f5f9;
+  --color-slate-200:#e2e8f0;
+  --color-slate-300:#cad5e2;
+  --color-slate-400:#90a1b9;
+  --color-slate-500:#62748e;
+  --color-slate-600:#45556c;
+  --color-slate-700:#314158;
+  --color-slate-800:#1d293d;
+  --color-slate-900:#0f172b;
+  --color-slate-950:#020618;
+  --color-brand:#3b37e8;--color-brand-dark:#2d29c4;--color-on-brand:#ffffff;
+  --color-red-50:#fef2f2;
+  --color-emerald-50:#ecfdf5;
+  --color-emerald-700:#007a55;
+  --color-amber-50:#fffbeb;
+  --color-amber-200:#fee685;
+  --color-amber-700:#b75000;
+  --color-amber-900:#7b3306;
+  --color-yellow-200:#fff085;
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="dark"] {
+  color-scheme:dark;
+  --color-surface:#161b22;
+  --color-slate-50:#0d1117;
+  --color-slate-100:#1f2630;
+  --color-slate-200:#2d333b;
+  --color-slate-300:#444c56;
+  --color-slate-400:#6e7b8b;
+  --color-slate-500:#8b98a8;
+  --color-slate-600:#a9b6c4;
+  --color-slate-700:#c4cfda;
+  --color-slate-800:#d8e0e8;
+  --color-slate-900:#e6edf3;
+  --color-slate-950:#f4f8fc;
+  --color-brand:#7478ff;--color-brand-dark:#5a5ee8;--color-on-brand:#0d1117;
+  --color-red-50:rgb(248 113 113 / 0.14);
+  --color-emerald-50:rgb(52 211 153 / 0.14);
+  --color-emerald-700:#6ee7b7;
+  --color-amber-50:rgb(251 191 36 / 0.12);
+  --color-amber-200:rgb(251 191 36 / 0.32);
+  --color-amber-700:#fcd34d;
+  --color-amber-900:#fde68a;
+  --color-yellow-200:rgb(250 204 21 / 0.35);
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="tokyonight"] {
+  color-scheme:dark;
+  --color-surface:#1f2335;
+  --color-slate-50:#16161e;
+  --color-slate-100:#292e42;
+  --color-slate-200:#3b4261;
+  --color-slate-300:#545c7e;
+  --color-slate-400:#6a739c;
+  --color-slate-500:#8089b3;
+  --color-slate-600:#9aa5ce;
+  --color-slate-700:#a9b1d6;
+  --color-slate-800:#c0caf5;
+  --color-slate-900:#c8d3f8;
+  --color-slate-950:#dbe3ff;
+  --color-brand:#7aa2f7;--color-brand-dark:#5f87e0;--color-on-brand:#16161e;
+  --color-red-50:rgb(248 113 113 / 0.14);
+  --color-emerald-50:rgb(52 211 153 / 0.14);
+  --color-emerald-700:#6ee7b7;
+  --color-amber-50:rgb(251 191 36 / 0.12);
+  --color-amber-200:rgb(251 191 36 / 0.32);
+  --color-amber-700:#fcd34d;
+  --color-amber-900:#fde68a;
+  --color-yellow-200:rgb(250 204 21 / 0.35);
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="catppuccin-mocha"] {
+  color-scheme:dark;
+  --color-surface:#1e1e2e;
+  --color-slate-50:#181825;
+  --color-slate-100:#2a2b3c;
+  --color-slate-200:#3b3d52;
+  --color-slate-300:#585b70;
+  --color-slate-400:#6c7086;
+  --color-slate-500:#9399b2;
+  --color-slate-600:#a6adc8;
+  --color-slate-700:#bac2de;
+  --color-slate-800:#cdd6f4;
+  --color-slate-900:#d6def7;
+  --color-slate-950:#e6ebfb;
+  --color-brand:#cba6f7;--color-brand-dark:#b48ef0;--color-on-brand:#181825;
+  --color-red-50:rgb(248 113 113 / 0.14);
+  --color-emerald-50:rgb(52 211 153 / 0.14);
+  --color-emerald-700:#6ee7b7;
+  --color-amber-50:rgb(251 191 36 / 0.12);
+  --color-amber-200:rgb(251 191 36 / 0.32);
+  --color-amber-700:#fcd34d;
+  --color-amber-900:#fde68a;
+  --color-yellow-200:rgb(250 204 21 / 0.35);
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="catppuccin-latte"] {
+  color-scheme:light;
+  --color-surface:#eff1f5;
+  --color-slate-50:#e6e9ef;
+  --color-slate-100:#e1e4ec;
+  --color-slate-200:#ccd0da;
+  --color-slate-300:#bcc0cc;
+  --color-slate-400:#9ca0b0;
+  --color-slate-500:#7c7f93;
+  --color-slate-600:#6c6f85;
+  --color-slate-700:#5c5f77;
+  --color-slate-800:#4c4f69;
+  --color-slate-900:#434660;
+  --color-slate-950:#363952;
+  --color-brand:#8839ef;--color-brand-dark:#7528d6;--color-on-brand:#ffffff;
+  --color-red-50:#fef2f2;
+  --color-emerald-50:#ecfdf5;
+  --color-emerald-700:#007a55;
+  --color-amber-50:#fffbeb;
+  --color-amber-200:#fee685;
+  --color-amber-700:#b75000;
+  --color-amber-900:#7b3306;
+  --color-yellow-200:#fff085;
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="nord"] {
+  color-scheme:dark;
+  --color-surface:#3b4252;
+  --color-slate-50:#2e3440;
+  --color-slate-100:#434c5e;
+  --color-slate-200:#4c566a;
+  --color-slate-300:#5e6a82;
+  --color-slate-400:#7b88a1;
+  --color-slate-500:#9aa6bd;
+  --color-slate-600:#b4bfd1;
+  --color-slate-700:#d8dee9;
+  --color-slate-800:#e5e9f0;
+  --color-slate-900:#eceff4;
+  --color-slate-950:#f5f7fa;
+  --color-brand:#88c0d0;--color-brand-dark:#74aebf;--color-on-brand:#2e3440;
+  --color-red-50:rgb(248 113 113 / 0.14);
+  --color-emerald-50:rgb(52 211 153 / 0.14);
+  --color-emerald-700:#6ee7b7;
+  --color-amber-50:rgb(251 191 36 / 0.12);
+  --color-amber-200:rgb(251 191 36 / 0.32);
+  --color-amber-700:#fcd34d;
+  --color-amber-900:#fde68a;
+  --color-yellow-200:rgb(250 204 21 / 0.35);
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="dracula"] {
+  color-scheme:dark;
+  --color-surface:#282a36;
+  --color-slate-50:#21222c;
+  --color-slate-100:#343746;
+  --color-slate-200:#44475a;
+  --color-slate-300:#5a5e78;
+  --color-slate-400:#6c7aae;
+  --color-slate-500:#8f9bc9;
+  --color-slate-600:#b0b8dd;
+  --color-slate-700:#cfd3ec;
+  --color-slate-800:#e3e5f3;
+  --color-slate-900:#f8f8f2;
+  --color-slate-950:#ffffff;
+  --color-brand:#bd93f9;--color-brand-dark:#a97bf0;--color-on-brand:#282a36;
+  --color-red-50:rgb(248 113 113 / 0.14);
+  --color-emerald-50:rgb(52 211 153 / 0.14);
+  --color-emerald-700:#6ee7b7;
+  --color-amber-50:rgb(251 191 36 / 0.12);
+  --color-amber-200:rgb(251 191 36 / 0.32);
+  --color-amber-700:#fcd34d;
+  --color-amber-900:#fde68a;
+  --color-yellow-200:rgb(250 204 21 / 0.35);
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="gruvbox"] {
+  color-scheme:dark;
+  --color-surface:#282828;
+  --color-slate-50:#1d2021;
+  --color-slate-100:#32302f;
+  --color-slate-200:#3c3836;
+  --color-slate-300:#504945;
+  --color-slate-400:#7c6f64;
+  --color-slate-500:#a09282;
+  --color-slate-600:#b4a592;
+  --color-slate-700:#c9b99a;
+  --color-slate-800:#d9c9a3;
+  --color-slate-900:#ebdbb2;
+  --color-slate-950:#fbf1c7;
+  --color-brand:#fe8019;--color-brand-dark:#e96d0a;--color-on-brand:#1d2021;
+  --color-red-50:rgb(248 113 113 / 0.14);
+  --color-emerald-50:rgb(52 211 153 / 0.14);
+  --color-emerald-700:#6ee7b7;
+  --color-amber-50:rgb(251 191 36 / 0.12);
+  --color-amber-200:rgb(251 191 36 / 0.32);
+  --color-amber-700:#fcd34d;
+  --color-amber-900:#fde68a;
+  --color-yellow-200:rgb(250 204 21 / 0.35);
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+[data-theme="system"] {
+  color-scheme:light;
+  --color-surface:#ffffff;
+  --color-slate-50:#f8fafc;
+  --color-slate-100:#f1f5f9;
+  --color-slate-200:#e2e8f0;
+  --color-slate-300:#cad5e2;
+  --color-slate-400:#90a1b9;
+  --color-slate-500:#62748e;
+  --color-slate-600:#45556c;
+  --color-slate-700:#314158;
+  --color-slate-800:#1d293d;
+  --color-slate-900:#0f172b;
+  --color-slate-950:#020618;
+  --color-brand:#3b37e8;--color-brand-dark:#2d29c4;--color-on-brand:#ffffff;
+  --color-red-50:#fef2f2;
+  --color-emerald-50:#ecfdf5;
+  --color-emerald-700:#007a55;
+  --color-amber-50:#fffbeb;
+  --color-amber-200:#fee685;
+  --color-amber-700:#b75000;
+  --color-amber-900:#7b3306;
+  --color-yellow-200:#fff085;
+  --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+  --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+  --color-indigo-950:var(--color-slate-950);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    color-scheme:dark;
+    --color-surface:#161b22;
+    --color-slate-50:#0d1117;
+    --color-slate-100:#1f2630;
+    --color-slate-200:#2d333b;
+    --color-slate-300:#444c56;
+    --color-slate-400:#6e7b8b;
+    --color-slate-500:#8b98a8;
+    --color-slate-600:#a9b6c4;
+    --color-slate-700:#c4cfda;
+    --color-slate-800:#d8e0e8;
+    --color-slate-900:#e6edf3;
+    --color-slate-950:#f4f8fc;
+    --color-brand:#7478ff;--color-brand-dark:#5a5ee8;--color-on-brand:#0d1117;
+    --color-red-50:rgb(248 113 113 / 0.14);
+    --color-emerald-50:rgb(52 211 153 / 0.14);
+    --color-emerald-700:#6ee7b7;
+    --color-amber-50:rgb(251 191 36 / 0.12);
+    --color-amber-200:rgb(251 191 36 / 0.32);
+    --color-amber-700:#fcd34d;
+    --color-amber-900:#fde68a;
+    --color-yellow-200:rgb(250 204 21 / 0.35);
+    --color-indigo-50:color-mix(in oklab,var(--color-brand) 12%,var(--color-surface));
+    --color-indigo-400:color-mix(in oklab,var(--color-brand) 60%,white);
+    --color-indigo-950:var(--color-slate-950);
+  }
+}

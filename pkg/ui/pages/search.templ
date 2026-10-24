@@ -1,0 +1,105 @@
+package pages
+
+import "github.com/cksidharthan/lavender/pkg/ui/components"
+
+// highlighted is a text with the words of the search marked.
+templ highlighted(text, query string) {
+	for _, p := range highlightParts(text, query) {
+		if p.Match {
+			<mark class="rounded-sm bg-yellow-200 px-0.5 text-inherit">{ p.Text }</mark>
+		} else {
+			{ p.Text }
+		}
+	}
+}
+
+// Search is the page to search the articles of all the feeds. The results follow what is typed.
+templ Search(p SearchProps) {
+	<div>
+		<h1 class={ components.TitleClass }>Search</h1>
+		<form
+			role="search"
+			action="/search"
+			method="get"
+			hx-get="/search/results"
+			hx-trigger="input delay:250ms, change, submit"
+			hx-target="#search-results"
+			hx-swap="innerHTML"
+			hx-sync="this:replace"
+			hx-indicator="#search-results"
+			hx-on::before-request="history.replaceState(null, '', '/search?' + new URLSearchParams(new FormData(this)))"
+			hx-on:submit="document.activeElement.blur()"
+			class="sticky top-0 z-10 -mx-4 mt-3 bg-slate-50 px-4 pt-1 pb-3 sm:mx-0 sm:px-0"
+		>
+			<div class="relative">
+				<svg class="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+				<input
+					id="search-input"
+					type="search"
+					name="q"
+					value={ p.Query }
+					placeholder="Search titles, text and authors"
+					aria-label="Search articles"
+					autocomplete="off"
+					autocapitalize="off"
+					spellcheck="false"
+					enterkeyhint="search"
+					autofocus?={ p.Query == "" }
+					class="peer h-12 w-full appearance-none rounded-xl border border-slate-200 bg-surface pr-11 pl-12 text-base shadow-xs transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-4 focus:ring-brand/15 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+				/>
+				<button
+					type="button"
+					aria-label="Clear search"
+					onclick="var i = document.getElementById('search-input'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); i.focus()"
+					class="absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center rounded-r-xl text-slate-400 transition hover:text-slate-600 peer-placeholder-shown:hidden"
+				>
+					<svg class="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm3.7 12.3-1.4 1.4-2.3-2.3-2.3 2.3-1.4-1.4 2.3-2.3-2.3-2.3 1.4-1.4 2.3 2.3 2.3-2.3 1.4 1.4-2.3 2.3 2.3 2.3Z"></path></svg>
+				</button>
+			</div>
+			<div class="mt-2.5 flex items-center gap-2">
+				<label for="search-feed" class="shrink-0 text-sm text-slate-500">In</label>
+				<div class="relative min-w-0 flex-1 sm:max-w-xs sm:flex-none sm:basis-64">
+					<select id="search-feed" name="feed" data-select class="h-10 w-full cursor-pointer rounded-lg border border-slate-200 bg-surface px-3 text-base text-slate-700 shadow-xs transition hover:border-slate-300 focus:border-brand focus:ring-4 focus:ring-brand/15 focus:outline-none sm:text-sm">
+						<option value="">All feeds</option>
+						for _, f := range p.Folders {
+							if f.Name == "" {
+								for _, feed := range f.Feeds {
+									<option value={ feed.ID } selected?={ feed.ID == p.FeedID }>{ feed.Title }</option>
+								}
+							} else {
+								<optgroup label={ f.Name }>
+									for _, feed := range f.Feeds {
+										<option value={ feed.ID } selected?={ feed.ID == p.FeedID }>{ feed.Title }</option>
+									}
+								</optgroup>
+							}
+						}
+					</select>
+				</div>
+			</div>
+		</form>
+		<div id="search-results" aria-live="polite" class="transition-opacity [&.htmx-request]:opacity-50">
+			@SearchResults(p.Results)
+		</div>
+	</div>
+}
+
+// SearchResults is what is below the search box.
+templ SearchResults(p SearchResultsProps) {
+	if p.Query == "" {
+		<div class="mt-10 flex flex-col items-center gap-2 text-center text-slate-500">
+			<svg class="size-10 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+			<p class="text-sm">Find an article by a word in its title, its text or its author.</p>
+			<p class="hidden text-xs text-slate-400 md:block">Press <kbd class="rounded border border-slate-300 bg-surface px-1.5 py-0.5 font-sans text-[0.7rem] text-slate-500">/</kbd> anywhere to search.</p>
+		</div>
+	} else if len(p.Page.Items) == 0 {
+		<div class="mt-10 flex flex-col items-center gap-1 text-center text-slate-500">
+			<p class="text-base font-medium text-slate-700">Nothing found for “{ p.Query }”</p>
+			<p class="text-sm">Check the spelling, try fewer words, or search in all feeds.</p>
+		</div>
+	} else {
+		<ul class="mt-1 flex flex-col gap-3">
+			@ArticleItems(p.Page)
+		</ul>
+	}
+}
