@@ -32,7 +32,7 @@ func App(title string, sidebar components.SidebarProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" style=\"background:#fff\"><head><meta charset=\"utf-8\"><meta name=\"referrer\" content=\"no-referrer\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" style=\"background:#fff\"><head><meta charset=\"utf-8\"><meta name=\"referrer\" content=\"no-referrer\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"><title>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -45,7 +45,7 @@ func App(title string, sidebar components.SidebarProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Lavender</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\"><link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon.png\"><link rel=\"manifest\" href=\"/static/manifest.webmanifest\"><meta name=\"theme-color\" content=\"#ffffff\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-title\" content=\"Lavender\"><meta name=\"apple-mobile-web-app-status-bar-style\" content=\"default\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\"></script></head><body class=\"h-dvh overflow-hidden bg-slate-50 font-sans text-slate-950 antialiased\"><div class=\"flex h-dvh\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Lavender</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\"><link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon.png\"><link rel=\"manifest\" href=\"/static/manifest.webmanifest\"><meta name=\"theme-color\" content=\"#ffffff\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-title\" content=\"Lavender\"><meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\"></script></head><body class=\"h-dvh overflow-hidden bg-slate-50 font-sans text-slate-950 antialiased\"><div class=\"flex h-dvh\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -53,7 +53,7 @@ func App(title string, sidebar components.SidebarProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"sidebar-backdrop\" class=\"fixed inset-0 z-30 hidden bg-slate-950/30 data-[open]:block md:hidden\" onclick=\"toggleSidebar(false)\"></div><div class=\"flex min-w-0 flex-1 flex-col\"><header class=\"grid min-h-16 grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-slate-200 bg-white/90 px-3 pt-3 pb-2 backdrop-blur md:hidden\"><button type=\"button\" aria-label=\"Open menu\" onclick=\"toggleSidebar(true)\" class=\"flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100\"><svg class=\"size-6\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h10M4 17h16\"></path></svg></button> <a href=\"/\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"sidebar-backdrop\" class=\"fixed inset-0 z-30 hidden bg-slate-950/30 data-[open]:block md:hidden\" onclick=\"toggleSidebar(false)\"></div><div class=\"flex min-w-0 flex-1 flex-col\"><header class=\"grid min-h-16 grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-slate-200 bg-white/90 px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 backdrop-blur md:hidden\"><button type=\"button\" aria-label=\"Open menu\" onclick=\"toggleSidebar(true)\" class=\"flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100\"><svg class=\"size-6\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M4 7h16M4 12h10M4 17h16\"></path></svg></button> <a href=\"/\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

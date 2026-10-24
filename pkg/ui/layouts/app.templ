@@ -9,7 +9,7 @@ templ App(title string, sidebar components.SidebarProps) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="referrer" content="no-referrer"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 			<title>{ title } · Lavender</title>
 			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 			<link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
@@ -18,7 +18,7 @@ templ App(title string, sidebar components.SidebarProps) {
 			<meta name="mobile-web-app-capable" content="yes"/>
 			<meta name="apple-mobile-web-app-capable" content="yes"/>
 			<meta name="apple-mobile-web-app-title" content="Lavender"/>
-			<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<script src="/static/htmx.min.js"></script>
 		</head>
@@ -27,7 +27,7 @@ templ App(title string, sidebar components.SidebarProps) {
 				@components.Sidebar(sidebar)
 				<div id="sidebar-backdrop" class="fixed inset-0 z-30 hidden bg-slate-950/30 data-[open]:block md:hidden" onclick="toggleSidebar(false)"></div>
 				<div class="flex min-w-0 flex-1 flex-col">
-					<header class="grid min-h-16 grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-slate-200 bg-white/90 px-3 pt-3 pb-2 backdrop-blur md:hidden">
+					<header class="grid min-h-16 grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-slate-200 bg-white/90 px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 backdrop-blur md:hidden">
 						<button type="button" aria-label="Open menu" onclick="toggleSidebar(true)" class="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-700 transition active:bg-slate-100">
 							<svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h16"></path></svg>
 						</button>
