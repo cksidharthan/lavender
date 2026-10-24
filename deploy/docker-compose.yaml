@@ -2,12 +2,7 @@ name: lavender
 
 services:
   lavender:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-    image: lavender:local
+    image: cksidharthan/lavender:${VERSION:-v0.0.1}
     container_name: lavender
     restart: unless-stopped
     environment:

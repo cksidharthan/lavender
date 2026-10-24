@@ -1,0 +1,62 @@
+name: lavender
+
+services:
+  lavender:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    image: lavender:local
+    container_name: lavender
+    restart: unless-stopped
+    environment:
+      HTTP_SERVER_PORT: "8080"
+      ENVIRONMENT: local
+      LOG_LEVEL: info
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: lavender
+      OTEL_HOST: otel-lgtm
+      OTEL_PORT: "4317"
+      METRICS_UPLOAD_INTERVAL_SECS: "10"
+      POCKETBASE_DATA_DIR: /data/pb_data
+      ICON_CACHE_DIR: /data/icons
+    ports:
+      - "8080:8080"
+    volumes:
+      - lavender-data:/data
+    depends_on:
+      otel-lgtm:
+        condition: service_healthy
+    healthcheck:
+      # the image is built from scratch, it ships a small health check binary
+      test: ["CMD", "/healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: otel-lgtm
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # grafana ui
+      - "4317:4317" # otlp grpc
+      - "4318:4318" # otlp http
+    volumes:
+      - lgtm-data:/data
+      # the lavender dashboards: the provider file is picked up next to the ones of the image, it reads the dashboards
+      # from the mounted folder. Grafana rescans it every 30s, so an edited dashboard shows without a restart.
+      - ../monitoring/grafana/provisioning/dashboards/lavender.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/lavender.yaml:ro
+      - ../monitoring/grafana/dashboards:/otel-lgtm/lavender-dashboards:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  lavender-data:
+  lgtm-data:

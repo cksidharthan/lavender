@@ -28,7 +28,7 @@ func TestArticles(t *testing.T) {
 	require.True(t, page.HasMore)
 	require.Equal(t, "Hello & welcome", page.Items[0].Title)
 	require.Equal(t, "https://example.com/a", page.Items[0].URL)
-	require.Equal(t, "Mar 5, 2024", page.Items[0].Date)
+	require.Equal(t, "Mar 5, 2024 00:00", page.Items[0].Date)
 	require.NotContains(t, page.Items[0].Summary, "<")
 	require.Equal(t, "First line second", page.Items[0].Summary)
 

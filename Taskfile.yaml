@@ -1,5 +1,10 @@
 version: '3'
 
+vars:
+  IMAGE: cksidharthan/lavender
+  VERSION:
+    sh: tr -d '[:space:]' < .version
+
 tasks:
   default:
     desc: list all the available commands
@@ -53,3 +58,17 @@ tasks:
     desc: run the unit and integration tests
     cmds:
       - go test ./...
+
+  docker-push:
+    desc: build the image tagged with the version in .version and push it to dockerhub
+    cmds:
+      - docker buildx inspect lavender-builder >/dev/null 2>&1 || docker buildx create --name lavender-builder --driver docker-container
+      - >-
+        docker buildx build
+        --builder lavender-builder
+        --platform linux/amd64,linux/arm64
+        --file deploy/Dockerfile
+        --build-arg VERSION={{.VERSION}}
+        --tag {{.IMAGE}}:{{.VERSION}}
+        --push
+        .

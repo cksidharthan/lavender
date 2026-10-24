@@ -16,6 +16,7 @@ import (
 const (
 	untitled         = "Untitled"
 	dateLayout       = "Jan 2, 2006"
+	dateTimeLayout   = "Jan 2, 2006 15:04"
 	maxSummaryLength = 400
 )
 
@@ -86,7 +87,7 @@ func articleItem(a store.Article, feed components.Feed, saved store.SavedFlags) 
 		item.Title = untitled
 	}
 	if !a.PublishedAt.IsZero() {
-		item.Date = a.PublishedAt.Format(dateLayout)
+		item.Date = a.PublishedAt.Format(dateTimeLayout)
 	}
 
 	return item
@@ -157,7 +158,7 @@ func Article(a store.Article, saved store.SavedFlags) pages.ArticleDetail {
 		detail.Title = untitled
 	}
 	if !a.PublishedAt.IsZero() {
-		detail.Date = a.PublishedAt.Format(dateLayout)
+		detail.Date = a.PublishedAt.Format(dateTimeLayout)
 	}
 
 	return detail
