@@ -70,8 +70,10 @@ type list struct {
 	title string
 	intro string
 	empty string
+	// filterable lists can be limited to the feeds the user picked
+	filterable bool
 	// fetch returns a page of the list
-	fetch func(h *AuthHandler, userID string, limit, offset int) ([]store.FeedArticle, bool, error)
+	fetch func(h *AuthHandler, userID string, feedIDs []string, limit, offset int) ([]store.FeedArticle, bool, error)
 }
 
 // recentFor is how far back the articles of the today list go.
@@ -79,21 +81,23 @@ const recentFor = 24 * time.Hour
 
 var lists = map[string]list{
 	"home": {
-		name:  "home",
+		name:       "home",
+		filterable: true,
 		title: "Home",
 		intro: "The newest articles of all your feeds.",
 		empty: "No articles yet. They are fetched in the background, check again in a moment.",
-		fetch: func(h *AuthHandler, userID string, limit, offset int) ([]store.FeedArticle, bool, error) {
-			return h.store.AllArticles(userID, limit, offset)
+		fetch: func(h *AuthHandler, userID string, feedIDs []string, limit, offset int) ([]store.FeedArticle, bool, error) {
+			return h.store.AllArticles(userID, feedIDs, limit, offset)
 		},
 	},
 	"today": {
-		name:  "today",
+		name:       "today",
+		filterable: true,
 		title: "Today",
 		intro: "Articles of the last 24 hours.",
 		empty: "Nothing new in the last 24 hours.",
-		fetch: func(h *AuthHandler, userID string, limit, offset int) ([]store.FeedArticle, bool, error) {
-			return h.store.RecentArticles(userID, time.Now().Add(-recentFor), limit, offset)
+		fetch: func(h *AuthHandler, userID string, feedIDs []string, limit, offset int) ([]store.FeedArticle, bool, error) {
+			return h.store.RecentArticles(userID, feedIDs, time.Now().Add(-recentFor), limit, offset)
 		},
 	},
 	"favourites": {
@@ -101,7 +105,7 @@ var lists = map[string]list{
 		title: "Favourites",
 		intro: "The articles you marked with a star.",
 		empty: "No favourites yet. Press the star on an article to keep it here.",
-		fetch: func(h *AuthHandler, userID string, limit, offset int) ([]store.FeedArticle, bool, error) {
+		fetch: func(h *AuthHandler, userID string, feedIDs []string, limit, offset int) ([]store.FeedArticle, bool, error) {
 			return h.store.SavedArticles(userID, db.SavedFavourite, limit, offset)
 		},
 	},
@@ -110,7 +114,7 @@ var lists = map[string]list{
 		title: "Read later",
 		intro: "The articles you saved for later.",
 		empty: "Nothing saved for later. Press the bookmark on an article to keep it here.",
-		fetch: func(h *AuthHandler, userID string, limit, offset int) ([]store.FeedArticle, bool, error) {
+		fetch: func(h *AuthHandler, userID string, feedIDs []string, limit, offset int) ([]store.FeedArticle, bool, error) {
 			return h.store.SavedArticles(userID, db.SavedReadLater, limit, offset)
 		},
 	},
@@ -122,6 +126,17 @@ func (h *AuthHandler) listPage(l list) func(w http.ResponseWriter, r *http.Reque
 		page, ok := h.listItems(w, r, user, l, 0)
 		if !ok {
 			return
+		}
+
+		var filter pages.FeedFilter
+		if l.filterable {
+			tree, err := h.store.Tree(user.Id)
+			if err != nil {
+				h.serverError(w, r, "error finding feeds", err)
+				return
+			}
+
+			filter = pages.FeedFilter{Action: "/" + strings.TrimPrefix(r.URL.Path, "/"), Folders: view.Sidebar(user, tree).Folders, Selected: feedSelection(r)}
 		}
 
 		empty := l.empty
@@ -137,8 +152,26 @@ func (h *AuthHandler) listPage(l list) func(w http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		h.renderApp(w, r, user, l.title, pages.List(l.title, l.intro, empty, page))
+		h.renderApp(w, r, user, l.title, pages.List(l.title, l.intro, empty, page, filter))
 	}
+}
+
+// maxFeedSelection keeps the filter of a list cheap.
+const maxFeedSelection = 100
+
+// feedSelection are the feeds the request limits a list to, empty for all of them.
+func feedSelection(r *http.Request) []string {
+	var ids []string
+	seen := map[string]bool{}
+	for _, id := range r.URL.Query()["feed"] {
+		if id == "" || seen[id] || len(ids) >= maxFeedSelection {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+
+	return ids
 }
 
 // listFragment answers the next page of a list, as list items to add to the list.
@@ -164,7 +197,12 @@ func (h *AuthHandler) listFragment(w http.ResponseWriter, r *http.Request, user 
 
 // listItems builds a page of a list. The error is already answered when ok is false.
 func (h *AuthHandler) listItems(w http.ResponseWriter, r *http.Request, user *core.Record, l list, offset int) (pages.ArticlePage, bool) {
-	articles, hasMore, err := l.fetch(h, user.Id, articlesPageSize, offset)
+	var feedIDs []string
+	if l.filterable {
+		feedIDs = feedSelection(r)
+	}
+
+	articles, hasMore, err := l.fetch(h, user.Id, feedIDs, articlesPageSize, offset)
 	if err != nil {
 		h.serverError(w, r, "error finding articles", err)
 		return pages.ArticlePage{}, false
@@ -179,7 +217,12 @@ func (h *AuthHandler) listItems(w http.ResponseWriter, r *http.Request, user *co
 		return pages.ArticlePage{}, false
 	}
 
-	return view.ListArticles(articles, hasMore, offset, "/articles?view="+l.name, saved), true
+	moreURL := "/articles?view=" + l.name
+	for _, id := range feedIDs {
+		moreURL += "&feed=" + url.QueryEscape(id)
+	}
+
+	return view.ListArticles(articles, hasMore, offset, moreURL, saved), true
 }
 
 func storeArticleIDs(articles []store.Article) []string {

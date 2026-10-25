@@ -2,17 +2,65 @@ package pages
 
 import "github.com/cksidharthan/lavender/pkg/ui/components"
 
-// List is a page with a list of articles of all the feeds, like the home page.
-templ List(title, intro, empty string, page ArticlePage) {
+// List is a page with a list of articles of all the feeds, like the home page. The lists that can be limited to some
+// feeds show the choice above the articles.
+templ List(title, intro, empty string, page ArticlePage, filter FeedFilter) {
 	<div>
-		<h1 class={ components.TitleClass }>{ title }</h1>
-		if len(page.Items) == 0 {
-			<p class={ components.SubtitleClass }>{ empty }</p>
-		} else {
-			<p class="mt-1 text-sm text-slate-500">{ intro }</p>
-			<ul class="mt-4 flex flex-col gap-3">
-				@ArticleItems(page)
-			</ul>
-		}
+		<div class="relative z-20 flex items-center justify-between gap-3">
+			<h1 class={ components.TitleClass }>{ title }</h1>
+			if filter.feedCount() > 0 {
+				@feedPicker(filter)
+			}
+		</div>
+		<div id="article-list-body">
+			if len(page.Items) == 0 {
+				<p class={ components.SubtitleClass }>{ empty }</p>
+			} else {
+				<p class="mt-1 text-sm text-slate-500">{ intro }</p>
+				<ul class="mt-4 flex flex-col gap-3">
+					@ArticleItems(page)
+				</ul>
+			}
+		</div>
 	</div>
+}
+
+// feedPicker is a menu with a checkbox for each feed. The list follows the choice, no feeds picked shows all of them.
+templ feedPicker(f FeedFilter) {
+	<form
+		action={ templ.SafeURL(f.Action) }
+		method="get"
+		hx-get={ f.Action }
+		hx-trigger="change"
+		hx-target="#article-list-body"
+		hx-select="#article-list-body"
+		hx-swap="outerHTML"
+		hx-push-url="true"
+		hx-sync="this:replace"
+		class="min-w-0"
+	>
+		<details data-menu class="relative inline-block max-w-full">
+			<summary class="flex h-10 max-w-full cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-surface px-3 text-sm text-slate-700 shadow-xs transition hover:border-slate-300 [&::-webkit-details-marker]:hidden">
+				<span class="text-slate-500">Show</span>
+				<span class="truncate font-medium">{ f.label() }</span>
+				<svg class="size-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+			</summary>
+			<div class="absolute right-0 z-20 mt-1 max-h-80 w-72 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-slate-200 bg-surface p-2 shadow-lg">
+				for _, folder := range f.Folders {
+					if folder.Name != "" {
+						<p class="px-2 pt-1 pb-0.5 text-xs font-medium text-slate-400">{ folder.Name }</p>
+					}
+					for _, feed := range folder.Feeds {
+						<label class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+							<input type="checkbox" name="feed" value={ feed.ID } checked?={ f.picked(feed.ID) } class="size-4 shrink-0 accent-brand"/>
+							<span class="truncate">{ feed.Title }</span>
+						</label>
+					}
+				}
+				if len(f.Selected) > 0 {
+					<a href={ templ.SafeURL(f.Action) } hx-boost="true" class="mt-1 block rounded-md px-2 py-1.5 text-sm text-brand hover:bg-slate-100">Show all feeds</a>
+				}
+			</div>
+		</details>
+	</form>
 }

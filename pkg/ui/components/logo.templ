@@ -2,7 +2,7 @@ package components
 
 templ Logo() {
 	<a href="/" class="inline-flex items-center gap-3 text-5xl font-bold tracking-tight text-indigo-950">
-		@LogoMark("size-14 text-brand")
+		@LogoMark("size-14")
 		<span>Lavender</span>
 	</a>
 }
@@ -10,13 +10,14 @@ templ Logo() {
 // LogoSmall is the logo for the top of the sidebar. It loads the home page into the content area.
 templ LogoSmall() {
 	<a href="/" { ContentLink("/")... } class="inline-flex items-center gap-2.5 rounded-md text-xl font-bold tracking-tight text-indigo-950">
-		@LogoMark("size-8 text-brand")
+		@LogoMark("size-8")
 		<span>Lavender</span>
 	</a>
 }
 
+// LogoMark is the mark of the logo. It keeps its own color, it does not follow the theme.
 templ LogoMark(class string) {
-	<svg viewBox="0 0 32 32" fill="none" aria-hidden="true" class={ class }>
+	<svg viewBox="0 0 32 32" fill="none" aria-hidden="true" class={ class } style="color:#3b37e8">
 		<rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="currentColor"></rect>
 		<g transform="translate(16 4)">
 			<path d="M0 24V9" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity="0.92"></path>

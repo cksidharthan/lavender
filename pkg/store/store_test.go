@@ -145,7 +145,7 @@ func TestAllArticlesMixTheFeedsNewestFirstAndOnlyOfTheUser(t *testing.T) {
 	save(news.ID, item("news-3", 3), item("news-5", 5))
 	save(other.ID, item("bob-6", 6))
 
-	page, more, err := s.AllArticles(alice, 3, 0)
+	page, more, err := s.AllArticles(alice, nil, 3, 0)
 	require.NoError(t, err)
 	require.True(t, more)
 	require.Equal(t, []string{"news-5", "blog-4", "news-3"}, []string{page[0].Title, page[1].Title, page[2].Title})
@@ -153,7 +153,7 @@ func TestAllArticlesMixTheFeedsNewestFirstAndOnlyOfTheUser(t *testing.T) {
 	require.Equal(t, news.ID, page[0].Feed.ID)
 	require.Equal(t, "Blog", page[1].Feed.Title)
 
-	page, more, err = s.AllArticles(alice, 3, 3)
+	page, more, err = s.AllArticles(alice, nil, 3, 3)
 	require.NoError(t, err)
 	require.False(t, more)
 	require.Len(t, page, 1)
@@ -161,11 +161,21 @@ func TestAllArticlesMixTheFeedsNewestFirstAndOnlyOfTheUser(t *testing.T) {
 
 	// an article without a date is dated when it is found, so it is among the newest
 	save(blog.ID, feedfetch.Item{GUID: "undated", Title: "undated"})
-	page, _, err = s.AllArticles(alice, 1, 0)
+	page, _, err = s.AllArticles(alice, nil, 1, 0)
 	require.NoError(t, err)
 	require.Equal(t, "undated", page[0].Title)
 
-	bobPage, _, err := s.AllArticles(bob, 10, 0)
+	// only the feeds that are picked, never the feeds of someone else
+	picked, _, err := s.AllArticles(alice, []string{news.ID}, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"news-5", "news-3"}, []string{picked[0].Title, picked[1].Title})
+	require.Len(t, picked, 2)
+
+	picked, _, err = s.AllArticles(alice, []string{news.ID, other.ID}, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, picked, 2)
+
+	bobPage, _, err := s.AllArticles(bob, nil, 10, 0)
 	require.NoError(t, err)
 	require.Len(t, bobPage, 1)
 	require.Equal(t, "bob-6", bobPage[0].Title)
@@ -207,7 +217,7 @@ func TestFeedSettings(t *testing.T) {
 		_, err := s.SaveFetch(id, feedfetch.Result{Meta: feedfetch.Meta{Type: "rss"}, Items: []feedfetch.Item{{GUID: id, Title: id}}})
 		require.NoError(t, err)
 	}
-	home, _, err := s.AllArticles(alice, 10, 0)
+	home, _, err := s.AllArticles(alice, nil, 10, 0)
 	require.NoError(t, err)
 	require.Len(t, home, 1)
 	require.Equal(t, visible.ID, home[0].Feed.ID)
@@ -217,7 +227,7 @@ func TestFeedSettings(t *testing.T) {
 
 	// back to the defaults
 	require.NoError(t, s.UpdateFeedSettings(alice, feed.ID, store.FeedSettings{}))
-	home, _, err = s.AllArticles(alice, 10, 0)
+	home, _, err = s.AllArticles(alice, nil, 10, 0)
 	require.NoError(t, err)
 	require.Len(t, home, 2)
 }
@@ -274,12 +284,12 @@ func TestSavedArticlesAndRecentArticles(t *testing.T) {
 	require.NoError(t, err)
 
 	// today: the last 24 hours, of the feeds of the user
-	recent, more, err := s.RecentArticles(alice, now.Add(-24*time.Hour), 10, 0)
+	recent, more, err := s.RecentArticles(alice, nil, now.Add(-24*time.Hour), 10, 0)
 	require.NoError(t, err)
 	require.False(t, more)
 	require.Equal(t, []string{"new", "today"}, []string{recent[0].Title, recent[1].Title})
 
-	all, _, err := s.AllArticles(alice, 10, 0)
+	all, _, err := s.AllArticles(alice, nil, 10, 0)
 	require.NoError(t, err)
 	byTitle := map[string]string{}
 	for _, a := range all {

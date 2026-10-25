@@ -437,24 +437,37 @@ func toArticle(r *core.Record) Article {
 }
 
 // AllArticles returns a page of the articles of all the feeds of the user, the newest first, and whether there are more.
-func (s *Store) AllArticles(userID string, limit, offset int) ([]FeedArticle, bool, error) {
-	return s.homeArticles(userID, "", nil, limit, offset)
+// When feedIDs is not empty only those feeds are shown, also the ones that are hidden from home.
+func (s *Store) AllArticles(userID string, feedIDs []string, limit, offset int) ([]FeedArticle, bool, error) {
+	return s.homeArticles(userID, feedIDs, "", nil, limit, offset)
 }
 
 // RecentArticles returns a page of the articles of the feeds of the user that were published since the time, the
 // newest first, and whether there are more. Like the home page it leaves out the feeds that are hidden from it.
-func (s *Store) RecentArticles(userID string, since time.Time, limit, offset int) ([]FeedArticle, bool, error) {
-	return s.homeArticles(userID, " && published_at >= {:since}", dbx.Params{"since": since.UTC().Format(types.DefaultDateLayout)}, limit, offset)
+func (s *Store) RecentArticles(userID string, feedIDs []string, since time.Time, limit, offset int) ([]FeedArticle, bool, error) {
+	return s.homeArticles(userID, feedIDs, " && published_at >= {:since}", dbx.Params{"since": since.UTC().Format(types.DefaultDateLayout)}, limit, offset)
 }
 
-func (s *Store) homeArticles(userID, extraFilter string, extra dbx.Params, limit, offset int) ([]FeedArticle, bool, error) {
+func (s *Store) homeArticles(userID string, feedIDs []string, extraFilter string, extra dbx.Params, limit, offset int) ([]FeedArticle, bool, error) {
 	params := dbx.Params{"user": userID}
 	for k, v := range extra {
 		params[k] = v
 	}
 
+	// the feeds the user picked, or all the ones that are not hidden from home
+	feedFilter := "feed.hide_from_home = false"
+	if len(feedIDs) > 0 {
+		conditions := make([]string, 0, len(feedIDs))
+		for i, id := range feedIDs {
+			key := fmt.Sprintf("feed%d", i)
+			params[key] = id
+			conditions = append(conditions, "feed = {:"+key+"}")
+		}
+		feedFilter = "(" + strings.Join(conditions, " || ") + ")"
+	}
+
 	// one more than asked, to know if there is a next page.
-	records, err := s.app.FindRecordsByFilter(db.ArticlesCollection, "feed.user = {:user} && feed.hide_from_home = false"+extraFilter, "-published_at,-created", limit+1, offset, params)
+	records, err := s.app.FindRecordsByFilter(db.ArticlesCollection, "feed.user = {:user} && "+feedFilter+extraFilter, "-published_at,-created", limit+1, offset, params)
 	if err != nil {
 		return nil, false, fmt.Errorf("error finding articles: %w", err)
 	}

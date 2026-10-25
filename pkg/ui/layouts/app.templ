@@ -284,6 +284,14 @@ templ App(title string, sidebar components.SidebarProps) {
 				// a form that is reset or filled by a script changes its selects without an event
 				function syncSelects(root) { root.querySelectorAll('select[data-select]').forEach(function (el) { if (el._sync) el._sync(); }); }
 				document.addEventListener('reset', function (e) { setTimeout(function () { syncSelects(e.target); }); });
+				// Escape closes the menu of feeds of a list and gives the focus back to its button
+				document.addEventListener('keydown', function (e) {
+					if (e.key !== 'Escape') return;
+					var menu = document.querySelector('details[open][data-menu]');
+					if (!menu) return;
+					menu.removeAttribute('open');
+					menu.querySelector('summary').focus();
+				});
 				// "/" or Ctrl/Cmd+K opens the search, unless something is being typed in
 				document.addEventListener('keydown', function (e) {
 					var el = document.activeElement;
